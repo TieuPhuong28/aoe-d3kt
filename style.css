@@ -100,7 +100,11 @@ button { font: inherit; cursor: pointer; }
 }
 .order .ally { background: #2f6fde; }
 .order .foe { background: #d0453a; }
-.order .cur { outline: 2px solid #ffe14a; outline-offset: 1px; }
+.order .cur { outline: 2px solid #ffe14a; outline-offset: 1px; font-weight: 700; box-shadow: 0 0 8px 2px rgba(255, 225, 74, .55); }
+.card.bcur { border: 2px solid #ffd21f; }
+.card.bcur.foe { border-color: #d0453a; }
+.bturn { display: inline-block; font-size: 12px; font-weight: 700; color: #10230e; background: #ffd21f; border-radius: 4px; padding: 1px 7px; margin-bottom: 4px; }
+.card.bcur.foe .bturn { background: #d0453a; color: #fff; }
 .order .done { opacity: .4; }
 
 /* Mua dân & trạng thái quân */
@@ -156,5 +160,6 @@ img.ic { width: 1.3em; height: 1.3em; vertical-align: -0.3em; object-fit: contai
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; margin: 4px 0 2px; color: #c9cedb; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .lg { display: inline-block; width: 14px; height: 12px; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
-.lg.mv { background: #e8ecf3; }
-.lg.atk { background: #ff5a45; }
+.lg.mv { background: radial-gradient(#5d7a8f 35%, #cdeaff 100%); }
+.lg.atk { background: #ff3b2f; position: relative; }
+.lg.atk::after { content: ''; position: absolute; inset: 2.5px; background: #232733; clip-path: inherit; }

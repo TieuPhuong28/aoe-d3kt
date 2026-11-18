@@ -23,7 +23,12 @@ Thả ảnh vào đúng thư mục, đúng tên file, rồi tải lại trang ga
 | `buildings/farm` | Ruộng lúa | " |
 | `buildings/range` | Trường bắn cung | " |
 | `buildings/stable` | Chuồng ngựa | " |
+| `buildings/market` | Chợ | " |
 | `buildings/site` | Công trình đang xây | " |
+| `animals/deer` | Đàn hươu (còn sống) | trên ô bản đồ |
+| `animals/deer_dead` | Xác hươu (đã bị hạ, đang xẻ thịt) | " |
+| `animals/elephant` | Voi (còn sống) | " |
+| `animals/elephant_dead` | Xác voi | " |
 | `res/food` | Thức ăn | thanh tài nguyên, giá tiền, gợi ý |
 | `res/wood` | Gỗ | " |
 | `res/stone` | Đá | " |
