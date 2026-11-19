@@ -90,6 +90,185 @@ const TECHS = {
   stone2: { name: 'Đục đồng', icon: '⛏️', at: 'market', age: 3, req: 'stone', cost: { food: 150, wood: 80 }, turns: 3, load: { stone: 3 }, desc: '+3 Đá mỗi chuyến nữa' },
   gold2: { name: 'Đào sâu', icon: '🪙', at: 'market', age: 3, req: 'gold', cost: { food: 180, wood: 120 }, turns: 3, load: { gold: 3 }, desc: '+3 Vàng mỗi chuyến nữa' },
 };
+// ---------- Đế chế (theo dữ liệu AoE1 Rise of Rome, xem phong-van/2026-11-19-ke-hoach-de-che.md) ----------
+// bonus: lợi thế có tác dụng — kind 'cost': giá các quân trong `units` nhân `mul` (làm tròn).
+// ban: id quân / nâng cấp của game mà đế chế không có. later: đặc điểm game chưa có, chỉ hiện chữ.
+// ai: gợi ý cho AI — vil: số dân mục tiêu cộng thêm mỗi đời.
+const CIVS = {
+  none: { name: 'Không đế chế', arch: '', desc: 'Không có lợi thế riêng.', bonus: [], ban: [], later: [] },
+  shang: {
+    name: 'Shang', arch: 'Châu Á', desc: 'Dân làng rẻ, kinh tế khởi đầu nhanh.',
+    bonus: [{ kind: 'cost', units: ['vil'], mul: 0.7, txt: 'Dân làng rẻ hơn 30% (🍖50 → 🍖35)' }],
+    ban: [],
+    later: ['Tường Máu ×2 (game chưa có Tường)', 'Không có: Voi chiến, Voi bắn cung, Phalanx, Long Sword, Legion, Centurion, thuyền chiến, một số công nghệ Đời Đồ Sắt'],
+    ai: { vil: 2 },
+  },
+  sumerian: {
+    name: 'Sumerian', arch: 'Ai Cập', desc: 'Ruộng lúa gấp đôi, dân làng khỏe.',
+    bonus: [
+      { kind: 'farmAmt', pct: 1, txt: 'Ruộng lúa chứa gấp đôi Thức ăn' },
+      { kind: 'hp', units: ['vil'], mul: 1.6, txt: 'Dân làng Máu ×1,6 (6 → 10)' },
+    ],
+    ban: ['cav', 'hcav', 'archer2', 'arrow'],
+    banTxt: 'Không có Kỵ binh, Kỵ binh nặng, Cung đồng (nên cũng không có Mũi tên đồng)',
+    later: ['Quân công thành đánh nhanh hơn (game chưa có công thành)', 'Không có: Balista, Helepolis, Legion, Cataphract, voi, thuyền chiến lớn, một số công nghệ Đời Đồ Sắt'],
+  },
+  yamato: {
+    name: 'Yamato', arch: 'Châu Á', desc: 'Kỵ binh rẻ, dân làng đi nhanh.',
+    bonus: [
+      { kind: 'cost', units: ['cav', 'hcav'], mul: 0.75, txt: 'Kỵ binh, Kỵ binh nặng rẻ hơn 25%' },
+      { kind: 'mp', units: ['vil'], add: 1, txt: 'Dân làng +1 Di chuyển (2 → 3)' },
+    ],
+    ban: ['chariot', 'yoke'],
+    banTxt: 'Không có Xe chiến (nên cũng không có Ách đồng)',
+    later: ['Thuyền Máu +30% (game chưa có Thuyền)', 'Không có: Tháp canh nâng cấp, Thầy tu nâng cao, Broad Sword, Long Sword, Legion, voi, lạc đà, máy bắn đá lớn'],
+  },
+  roman: {
+    name: 'Roman', arch: 'La Mã', desc: 'Công trình rẻ, Kiếm sĩ đánh mạnh.',
+    bonus: [
+      { kind: 'bcost', blds: ['house', 'granary', 'storage', 'barracks', 'market', 'farm', 'range', 'stable'], mul: 0.85, txt: 'Mọi công trình rẻ hơn 15%' },
+      { kind: 'atk', units: ['sword'], mul: 1.2, txt: 'Kiếm sĩ +20% Công (5 → 6)' },
+    ],
+    ban: ['hcav'],
+    banTxt: 'Không có Ngựa chiến (Kỵ binh nặng)',
+    later: ['Tháp canh rẻ hơn 50% (game chưa có Tháp)', 'Không có: Composite Bow, Irrigation, Cataphract, voi, lạc đà, kỵ cung, xe cung, một số công nghệ Đền và Đời Đồ Sắt'],
+  },
+  greek: {
+    name: 'Greek', arch: 'Hy Lạp', desc: 'Lính giáo cơ động.',
+    bonus: [{ kind: 'mp', units: ['spear', 'pike'], add: 1, txt: 'Lính giáo, Lính trường thương +1 Di chuyển (2 → 3)' }],
+    ban: ['archer2', 'arrow', 'chariot', 'yoke'],
+    banTxt: 'Không có Cung đồng, Mũi tên đồng, Xe chiến, Ách đồng',
+    later: ['Thuyền chiến chạy nhanh hơn (game chưa có Thuyền)', 'Không có: Composite Bow, Broad Sword, Long Sword, Legion, Metallurgy, Cataphract, voi, lạc đà, kỵ cung, xe cung, một số công nghệ Đền'],
+  },
+  egyptian: {
+    name: 'Egyptian', arch: 'Ai Cập', desc: 'Khai thác Vàng giỏi, Xe chiến bền.',
+    bonus: [
+      { kind: 'load', res: ['gold'], pct: 0.4, txt: 'Dân đào Vàng +40% mỗi chuyến (10 → 14): mang nhiều hơn và đào nhanh hơn' }, // AoE1: mang +2 (+20%) và tốc độ làm việc +0.2 (+20%), gộp vào mỗi chuyến
+      { kind: 'hp', units: ['chariot'], mul: 1.33, txt: 'Xe chiến Máu ×1,33 (18 → 24)' },
+    ],
+    ban: ['cav', 'hcav'],
+    banTxt: 'Không có Kỵ binh, Kỵ binh nặng',
+    later: ['Thầy tu bắn xa và nhìn xa hơn (game chưa có Thầy tu)', 'Không có: Coinage, Siege Craft, Bronze Shield, Broad Sword, Long Sword, Phalanx, Legion, máy bắn đá lớn, Balista, Helepolis, kỵ cung'],
+  },
+  palmyra: {
+    name: 'Palmyra', arch: 'La Mã', desc: 'Dân làng đắt nhưng giỏi việc, có giáp.',
+    bonus: [
+      { kind: 'cost', units: ['vil'], mul: 1.5, txt: 'Dân làng đắt hơn 50% (🍖50 → 🍖75)' },
+      { kind: 'load', res: ['food', 'wood', 'gold', 'stone', 'farm'], pct: 0.2, txt: 'Dân khai thác mọi tài nguyên +20% mỗi chuyến (10 → 12, Ruộng 15 → 18)' },
+      { kind: 'def', units: ['vil'], add: 1, txt: 'Dân làng +1 Thủ (0 → 1)' },
+    ],
+    ban: [],
+    later: ['Cống nạp không mất phí (game chưa có Cống nạp)', 'Lạc đà chạy nhanh hơn 25% (game chưa có Lạc đà)', 'Không có: Plow, Irrigation, Craftsmanship, Coinage, Long Sword, Legion, Centurion, Metallurgy, Cataphract, công nghệ Đền, thuyền lớn'],
+  },
+  minoan: {
+    name: 'Minoan', arch: 'Hy Lạp', desc: 'Ruộng lúa bền, Cung thủ đồng bắn xa.',
+    bonus: [
+      { kind: 'farmAmt', pct: 0.24, txt: 'Ruộng lúa chứa thêm 24% Thức ăn (300 → 372)' },
+      { kind: 'brange', units: ['archer2'], add: 1, txt: 'Cung thủ đồng +1 Tầm trong trận (3 → 4)' },
+      { kind: 'vision', units: ['archer2'], add: 1, txt: 'Cung thủ đồng +1 Tầm nhìn (3 → 4)' },
+    ],
+    ban: ['hcav', 'chariot', 'yoke'],
+    banTxt: 'Không có Ngựa chiến (Kỵ binh nặng), Xe chiến, Ách đồng',
+    later: ['Mọi thuyền rẻ hơn 30% (game chưa có Thuyền)', 'Không có: Tháp canh nâng cấp, Fortifications, Legion, Cataphract, voi, kỵ cung, xe cung, công nghệ Đền'],
+  },
+  hittite: {
+    name: 'Hittite', arch: 'Babylon', desc: 'Cung thủ đánh mạnh.',
+    bonus: [{ kind: 'atk', units: ['archer', 'archer2'], add: 1, txt: 'Cung thủ +1 Công (3 → 4)' }],
+    ban: ['archer2', 'arrow', 'hcav'],
+    banTxt: 'Không có Cung đồng, Mũi tên đồng, Ngựa chiến (Kỵ binh nặng)',
+    later: ['Quân công thành Máu ×2 (game chưa có công thành)', 'Thuyền chiến bắn xa, nhìn xa +4 (game chưa có Thuyền)', 'Không có: Long Sword, Legion, Cataphract, Balista, Helepolis, Slinger, Medicine, công nghệ Đền, thuyền'],
+  },
+  phoenician: {
+    name: 'Phoenician', arch: 'Hy Lạp', desc: 'Đốn gỗ giỏi.',
+    bonus: [{ kind: 'load', res: ['wood'], pct: 0.5, txt: 'Dân đốn Gỗ +50% mỗi chuyến (10 → 15): mang nhiều hơn và đốn nhanh hơn' }], // AoE1: mang +3 (+30%) và tốc độ làm việc +0.2 (+20%)
+    ban: ['hcav'],
+    banTxt: 'Không có Ngựa chiến (Kỵ binh nặng)',
+    later: ['Voi chiến, Voi bắn cung rẻ hơn 25% (game chưa có Voi)', 'Thuyền bắn đá đánh nhanh hơn (game chưa có Thuyền)', 'Không có: Architecture, Chain Mail, Metallurgy, Siege Craft, máy bắn đá lớn, Balista, Helepolis, Cataphract, kỵ cung'],
+  },
+  persian: {
+    name: 'Persian', arch: 'Babylon', desc: 'Săn bắn giỏi.',
+    bonus: [{ kind: 'load', res: ['meat'], pct: 0.6, txt: 'Dân săn thịt (hươu, voi) +60% mỗi chuyến (10 → 16): mang nhiều hơn và làm nhanh hơn' }], // AoE1 Hunter: mang +3 (+30%), tốc độ làm việc +0.3 (+30%)
+    ban: ['spear', 'pike', 'chariot', 'yoke', 'wood2'],
+    banTxt: 'Không có Lính giáo, Lính trường thương, Xe chiến, Ách đồng, Cưa đồng',
+    later: ['Voi chiến, Voi bắn cung chạy nhanh hơn (game chưa có Voi)', 'Trireme đánh nhanh hơn (game chưa có Thuyền)', 'Không có: Plow, Wheel, Craftsmanship, Coinage, Siege Craft, Aristocracy, Balista, Helepolis, máy bắn đá lớn'],
+  },
+  carthage: {
+    name: 'Carthage', arch: 'La Mã', desc: 'Lính giáo bền.',
+    bonus: [{ kind: 'hp', units: ['spear', 'pike'], mul: 1.25, txt: 'Lính giáo, Lính trường thương Máu ×1,25 (12 → 15, 15 → 19)' }],
+    ban: ['chariot', 'yoke'],
+    banTxt: 'Không có Xe chiến, Ách đồng',
+    later: ['Voi chiến, Voi bắn cung Máu ×1,25 (game chưa có Voi)', 'Thuyền vận tải nhanh hơn, Fire Galley đánh mạnh hơn (game chưa có Thuyền)', 'Không có: Fortifications, Chain Mail, Metallurgy, Siege Craft, Composite Bow, Legion, Cataphract, máy bắn đá lớn, công nghệ Đền'],
+  },
+  macedonian: {
+    name: 'Macedonian', arch: 'La Mã', desc: 'Lính giáo chịu tên tốt, quân nhìn xa.',
+    bonus: [
+      { kind: 'defArc', units: ['spear', 'pike'], add: 2, txt: 'Lính giáo, Lính trường thương +2 Thủ trước Cung thủ' },
+      { kind: 'vision', units: ['vil', 'club', 'axe', 'sword', 'spear', 'pike', 'cav', 'hcav'], add: 1, txt: 'Dân làng, bộ binh, Kỵ binh +1 Tầm nhìn' },
+    ],
+    ban: ['chariot', 'yoke'],
+    banTxt: 'Không có Xe chiến, Ách đồng',
+    later: ['Quân công thành rẻ hơn 50% (game chưa có công thành)', 'Thuyền đánh cá, buôn, vận tải nhìn xa +2 (game chưa có Thuyền)', 'Không có: Đền và mọi công nghệ Đền, Wheel, Nobility, Engineering, Craftsmanship, Siege Craft, Fortifications, Long Sword, Legion, máy bắn đá lớn'],
+  },
+  babylonian: {
+    name: 'Babylonian', arch: 'Babylon', desc: 'Khai thác Đá giỏi.',
+    bonus: [{ kind: 'load', res: ['stone'], pct: 0.5, txt: 'Dân đào Đá +50% mỗi chuyến (10 → 15): mang nhiều hơn và đào nhanh hơn' }], // AoE1 Stone Miner: mang +3 (+30%), tốc độ làm việc +0.2 (+20%)
+    ban: ['hcav'],
+    banTxt: 'Không có Ngựa chiến (Kỵ binh nặng)',
+    later: ['Tường, Tháp canh Máu ×2 (game chưa có Tường, Tháp)', 'Thầy tu hồi sức nhanh hơn (game chưa có Thầy tu)', 'Không có: Chain Mail, Metallurgy, Phalanx, Tower Shield, Iron Shield, Cataphract, voi, Balista, Helepolis, thuyền lớn'],
+  },
+  assyrian: {
+    name: 'Assyrian', arch: 'Ai Cập', desc: 'Cung thủ bắn nhanh, dân làng đi nhanh.',
+    bonus: [
+      { kind: 'atk', units: ['archer', 'archer2'], mul: 1.27, txt: 'Cung thủ +27% Công (3 → 4)' }, // AoE1: thời gian giữa 2 đòn 1.4 → 1.1
+      { kind: 'mp', units: ['vil'], add: 1, txt: 'Dân làng +1 Di chuyển (2 → 3)' },
+    ],
+    ban: ['archer2', 'arrow', 'yoke'],
+    banTxt: 'Không có Cung đồng, Mũi tên đồng, Ách đồng',
+    later: ['Kỵ cung, Xe cung bắn nhanh hơn (game chưa có)', 'Không có: Architecture, Alchemy, Engineering, Nobility, Aristocracy, Chain Mail, Bronze Shield, Phalanx, Slinger, voi, thuyền lớn'],
+  },
+  choson: {
+    name: 'Choson', arch: 'Châu Á', desc: 'Kiếm sĩ rất bền.',
+    bonus: [{ kind: 'hp', units: ['sword'], mul: 1.5, txt: 'Kiếm sĩ Máu ×1,5 (15 → 23)' }], // AoE1: Long Swordsman, Legion Máu +80 (×2); áp cho Kiếm sĩ, giảm còn ×1,5 vì Kiếm sĩ của game rẻ (chốt 2026-11-19)
+    ban: ['chariot', 'yoke'],
+    banTxt: 'Không có Xe chiến, Ách đồng',
+    later: ['Thầy tu rẻ hơn 32% (game chưa có Thầy tu)', 'Tháp canh bắn xa, nhìn xa +2 (game chưa có Tháp)', 'Không có: Composite Bow, Chain Mail, Phalanx, Engineering, Nobility, Aristocracy, Alchemy, Iron Shield, Tower Shield, voi, lạc đà, máy bắn đá lớn'],
+  },
+};
+const CIV_PICK = ['shang', 'sumerian', 'yamato', 'roman', 'greek', 'egyptian', 'palmyra', 'minoan', 'hittite', 'phoenician', 'persian', 'carthage', 'macedonian', 'babylonian', 'assyrian', 'choson']; // các đế chế đã làm, chọn được ở Ván mới
+const civOf = p => CIVS[(p && p.civ) || 'none'] || CIVS.none;
+function unitCost(p, id) { // giá quân sau bonus đế chế
+  const base = UNITS[id].cost, out = { ...base };
+  for (const b of civOf(p).bonus) if (b.kind === 'cost' && b.units.includes(id)) for (const k in out) out[k] = Math.round(out[k] * b.mul);
+  return out;
+}
+function bldCost(p, id) { // giá công trình sau bonus đế chế
+  const out = { ...BUILDINGS[id].cost };
+  for (const b of civOf(p).bonus) if (b.kind === 'bcost' && b.blds.includes(id)) for (const k in out) out[k] = Math.round(out[k] * b.mul);
+  return out;
+}
+// Công cộng thêm theo đế chế: phần tăng theo tỉ lệ của Công gốc (Công 5, ×1.2 → +1)
+// mul: theo tỉ lệ của Công gốc; add: cộng thẳng
+const civAtk = (p, id) => civOf(p).bonus.reduce((a, b) => a + (b.kind === 'atk' && b.units.includes(id) ? (b.add || 0) + (b.mul ? Math.round(UNITS[id].atk * (b.mul - 1)) : 0) : 0), 0);
+const civBanned = (p, id) => civOf(p).ban.includes(id);
+function unitHp(p, id) { // Máu tối đa của loại quân sau bonus đế chế
+  let hp = UNITS[id].hp;
+  for (const b of civOf(p).bonus) if (b.kind === 'hp' && b.units.includes(id)) hp = Math.round(hp * (b.mul || 1)) + (b.add || 0);
+  return hp;
+}
+const maxHp = x => unitHp(G.players[x.owner], x.type); // x: quân trên bản đồ hoặc quân cờ trong trận
+const civMpAdd = (p, id) => civOf(p).bonus.reduce((a, b) => a + (b.kind === 'mp' && b.units.includes(id) ? b.add : 0), 0);
+const unitMp = (p, id) => UNITS[id].mp + civMpAdd(p, id); // Di chuyển tối đa trên bản đồ
+const maxMp = x => unitMp(G.players[x.owner], x.type);
+const bmpOf = x => UNITS[x.type].bmp + civMpAdd(G.players[x.owner], x.type); // Di chuyển trong trận
+// thêm mỗi chuyến theo tỉ lệ của mức gốc. keys: loại việc — 'food'/'wood'/'gold'/'stone' (mỏ), thêm 'meat' (thịt hươu, voi)
+// hoặc 'berry' (quả) cho Thức ăn; 'farm' (Ruộng lúa, gốc FARM_LOAD). Mỗi bonus tính một lần nếu khớp bất kỳ key nào.
+function civLoad(p, ...keys) {
+  const base = keys[0] === 'farm' ? FARM_LOAD : LOAD;
+  return civOf(p).bonus.reduce((a, b) => a + (b.kind === 'load' && keys.some(k => b.res.includes(k)) ? Math.round(base * b.pct) : 0), 0);
+}
+const civAdd = (p, kind, id) => civOf(p).bonus.reduce((a, b) => a + (b.kind === kind && b.units.includes(id) ? b.add : 0), 0); // cộng thẳng: 'vision' tầm nhìn, 'brange' tầm trong trận, 'defArc' Thủ trước Cung thủ
+const civDef = (p, id) => civOf(p).bonus.reduce((a, b) => a + (b.kind === 'def' && b.units.includes(id) ? b.add : 0), 0); // Thủ cộng thêm
+const civFarmPct = p => civOf(p).bonus.reduce((a, b) => a + (b.kind === 'farmAmt' ? b.pct : 0), 0);
 // Loại quân hiện tại của một dòng quân sau các nâng cấp đã có: club → axe → sword
 function lineOf(p, id) {
   for (let k = 0; k < 4; k++) {
@@ -156,7 +335,16 @@ const QUEUE_MAX = 5; // số mục tối đa trong hàng chờ của một công
 const UNIT_FIELDS = [['food', '🍖 Thức ăn', 0], ['wood', '🪵 Gỗ', 0], ['gold', '🪙 Vàng', 0], ['turns', 'Số lượt', 1], ['hp', 'Máu', 1], ['atk', 'Công', 0], ['def', 'Thủ', 0], ['mp', 'Di chuyển', 1], ['init', 'Tốc độ (trận)', 1], ['bmp', 'Di chuyển (trận)', 1], ['brange', 'Tầm (trận)', 1]];
 const BLD_FIELDS = [['wood', '🪵 Gỗ', 0], ['stone', '🪨 Đá', 0], ['gold', '🪙 Vàng', 0], ['turns', 'Số lượt xây', 1], ['hp', 'Máu', 1]];
 const TECH_FIELDS = [['food', '🍖 Thức ăn', 0], ['wood', '🪵 Gỗ', 0], ['stone', '🪨 Đá', 0], ['gold', '🪙 Vàng', 0], ['turns', 'Số lượt', 1]];
+const AI_FIELDS = [['gather', 'Khai thác (%)', 10, 400], ['bonus', 'Tài nguyên thêm đầu ván (mỗi loại)', 0], ['march', 'Gom đủ bao nhiêu lính mới kéo đi đánh', 1, 20]];
+// Độ khó AI: "chấp" bằng tốc độ khai thác, tài nguyên thêm đầu ván, cỡ đạo quân đi đánh; Rất khó thấy toàn bản đồ. Số chỉnh trong Quản trị.
+const DIFFS = {
+  easy: { name: 'Dễ', key: 'aiEasy', desc: 'AI khai thác chậm, gom đông mới đi đánh.' },
+  normal: { name: 'Thường', key: 'aiNormal', desc: 'AI chơi bình thường.' },
+  hard: { name: 'Khó', key: 'aiHard', desc: 'AI khai thác nhanh hơn, có thêm tài nguyên, đánh sớm.' },
+  vhard: { name: 'Rất khó', key: 'aiVhard', desc: 'Như Khó nhưng mạnh hơn, và AI thấy toàn bộ bản đồ.', omni: true },
+};
 const CFG_GROUPS = [ // [khóa, tiêu đề, [[trường, nhãn, giá trị nhỏ nhất]]]
+  ['aiEasy', 'AI · Dễ', AI_FIELDS], ['aiNormal', 'AI · Thường', AI_FIELDS], ['aiHard', 'AI · Khó', AI_FIELDS], ['aiVhard', 'AI · Rất khó (thấy toàn bản đồ)', AI_FIELDS],
   ['start', 'Khởi đầu ván', [['food', '🍖 Thức ăn', 0], ['wood', '🪵 Gỗ', 0], ['stone', '🪨 Đá', 0], ['gold', '🪙 Vàng', 0], ['villagers', 'Số dân làng', 1]]],
   ['gather', 'Khai thác', [['load', 'Mỗi chuyến mang về', 1], ['farmLoad', 'Mỗi chuyến từ Ruộng lúa', 1], ['mineCap', 'Số dân tối đa mỗi ô mỏ', 1]]],
   ['amounts', 'Trữ lượng mỗi ô', [['forest', 'Rừng (Gỗ)', 1], ['woodlot', 'Bãi gỗ nhỏ (Gỗ)', 1], ['gold', 'Mỏ vàng', 1], ['stone', 'Mỏ đá', 1], ['berry', 'Bụi quả dâu', 1], ['deer', 'Đàn hươu', 1], ['elephant', 'Đàn voi', 1], ['farm', 'Ruộng lúa', 1]]],
@@ -176,7 +364,8 @@ function defaultCfg() { // chụp lại giá trị gốc trong mã nguồn
     gather: { load: 10, farmLoad: 15, mineCap: 3 },
     amounts: { forest: 400, woodlot: 75, gold: 400, stone: 400, berry: 400, deer: 500, elephant: 800, farm: 300 },
     cfgVer: 2, // 2: dân làng có Công (bản cũ luôn ép Công dân = 0)
-    pop: { base: 4, perHouse: 4, max: 40 }, age: { food: 500, turns: 5 }, age3: { food: 800, gold: 200, turns: 6, cityHp: 40 }, city: { hp: 80 }, units: {}, buildings: {}, techs: {},
+    pop: { base: 4, perHouse: 4, max: 40 }, age: { food: 500, turns: 5 }, age3: { food: 800, gold: 200, turns: 6, cityHp: 40 }, city: { hp: 80 }, units: {},
+    aiEasy: { gather: 75, bonus: 0, march: 6 }, aiNormal: { gather: 100, bonus: 0, march: 4 }, aiHard: { gather: 125, bonus: 100, march: 3 }, aiVhard: { gather: 150, bonus: 200, march: 3 }, buildings: {}, techs: {},
     home: { berry: 2, animalMin: 1, animalMax: 2, elephantPct: 25, forest: 3, forestMin: 2, forestMax: 3, gold: 1, goldMin: 1, goldMax: 2, stone: 1, woodlotMin: 1, woodlotMax: 2 },
   };
   for (const [id, d] of Object.entries(UNITS)) c.units[id] = { food: d.cost.food || 0, wood: d.cost.wood || 0, gold: d.cost.gold || 0, turns: d.turns, hp: d.hp, atk: d.atk, def: d.def, mp: d.mp, init: d.init, bmp: d.bmp, brange: d.brange };
@@ -258,7 +447,7 @@ try { tacticalOn = localStorage.getItem('tac') !== '0'; } catch (e) { /* bỏ qu
 
 // ---------- Trạng thái ----------
 let focusId = null; // lính đang xem chỉ số trong đạo/đoàn (null = lính được chọn)
-let G = null, sel = null, selReach = new Map(), selTargets = new Map(), selAtk = new Set(), hoverRange = null, hover = -1, placing = null, selPick = null, selB = null, tab = 'eco';
+let G = null, sel = null, selReach = new Map(), selTargets = new Map(), selAtk = new Set(), hoverRange = null, hover = -1, placing = null, selPick = null, selB = null, techOpen = false; // techOpen: cửa sổ cây kỹ thuật đang mở
 const floaters = [];
 
 function genMap(depth = 0) { // depth >= 2: cấu hình quanh nhà không xếp vừa, chấp nhận bản đồ đặt được nhiều nhất có thể
@@ -349,6 +538,18 @@ function setMapMode(m) {
   mapMode = m;
   try { localStorage.setItem('mapMode', m); } catch (e) { /* bỏ qua */ }
 }
+// Lựa chọn ván mới: đời bắt đầu (cả hai bên) và độ khó AI, nhớ trên trình duyệt
+let startAgeSel = 1, diffSel = 'normal';
+try { const a = +localStorage.getItem('startAge'); if (a >= 1 && a <= 3) startAgeSel = a; if (DIFFS[localStorage.getItem('diff')]) diffSel = localStorage.getItem('diff'); } catch (e) { /* bỏ qua */ }
+function setStartAge(n) { n = +n; if (!(n >= 1 && n <= MAX_AGE)) return; startAgeSel = n; try { localStorage.setItem('startAge', n); } catch (e) { /* bỏ qua */ } }
+function setDiff(k) { if (!DIFFS[k]) return; diffSel = k; try { localStorage.setItem('diff', k); } catch (e) { /* bỏ qua */ } }
+// Đế chế: của bạn ('none' hoặc id trong CIV_PICK) và của AI (thêm 'random' = ngẫu nhiên trong CIV_PICK)
+let civSel = 'none', aiCivSel = 'random';
+try { const c = localStorage.getItem('civ'), a = localStorage.getItem('aiCiv'); if (c === 'random' || c === 'none' || CIV_PICK.includes(c)) civSel = c; if (a === 'random' || a === 'none' || CIV_PICK.includes(a)) aiCivSel = a; } catch (e) { /* bỏ qua */ }
+function setCiv(k, ai) { if (!(k === 'none' || k === 'random' || CIV_PICK.includes(k))) return; if (ai) aiCivSel = k; else civSel = k; try { localStorage.setItem(ai ? 'aiCiv' : 'civ', k); } catch (e) { /* bỏ qua */ } }
+const civTip = c => [...c.bonus.map(b => '✔ ' + b.txt), ...(c.banTxt ? ['🚫 ' + c.banTxt] : []), ...c.later.map(x => '… ' + x)].join('<br>') || c.desc;
+const gDiff = () => DIFFS[(G && G.diff) || 'normal'] || DIFFS.normal; // ván cũ chưa có độ khó: Thường
+const aiCfg = () => CFG[gDiff().key];
 // p có biết địa hình ô i không (đã khám phá, hoặc ván bản đồ sáng)
 const known = (p, i) => !!(G.reveal || p.explored[i]);
 
@@ -363,11 +564,19 @@ function mkPlayer(id, ci) {
 
 function newGame() {
   const m = genMap();
-  G = { turn: 1, t: m.t, players: [], units: [], uid: 1, log: [], over: null, busy: false, amt: m.t.map(x => AMT[x] || 0), bld: {}, reveal: mapMode === 'light' };
+  G = { turn: 1, t: m.t, players: [], units: [], uid: 1, log: [], over: null, busy: false, amt: m.t.map(x => AMT[x] || 0), bld: {}, reveal: mapMode === 'light', diff: diffSel, startAge: startAgeSel };
   G.players.push(mkPlayer(0, m.ps), mkPlayer(1, m.as));
+  const pickCiv = k => (k === 'random' ? CIV_PICK[rnd(CIV_PICK.length)] : k); // Ngẫu nhiên: một trong các đế chế đã làm
+  G.players[0].civ = pickCiv(civSel); G.players[1].civ = pickCiv(aiCivSel);
+  for (const p of G.players) for (let n = 2; n <= Math.min(G.startAge, MAX_AGE); n++) { // bắt đầu ở đời cao: chỉ đổi đời, lãnh thổ và Máu Nhà chính theo đời
+    const a = AGE_UP[n], c = p.city; p.age = n; c.terr = within(c.i, a.rad).filter(j => j !== c.i);
+    if (a.cityHp) { c.maxHp += a.cityHp; c.hp += a.cityHp; }
+  }
+  const bonus = aiCfg().bonus; for (const k in G.players[1].res) G.players[1].res[k] += bonus;
   for (const p of G.players) for (let k = 0; k < CFG.start.villagers; k++) spawn(p, 'vil', p.city.i);
   for (const p of G.players) updateVision(p);
-  placing = null; sel = null; selPick = null; selB = null; tab = 'eco'; selReach.clear(); selTargets.clear(); floaters.length = 0;
+  placing = null; sel = null; selPick = null; selB = null; techOpen = false; selReach.clear(); selTargets.clear(); floaters.length = 0;
+  if (civSel === 'random') log(`🎲 Đế chế của bạn (ngẫu nhiên): ${civOf(G.players[0]).name} — ${civOf(G.players[0]).bonus.map(b => b.txt).join('; ')}.`, 'info');
   log(`Trong vòng 4 ô quanh Nhà chính có ${homeText()} — nhưng lúc đầu bạn chỉ thấy 2 ô. Hãy cho dân đi dò, rồi dựng kho sát mỏ.`, 'info');
   document.getElementById('overlay').classList.remove('show');
   renderUI(); saveGame(); // ván mới thay bản lưu cũ
@@ -395,7 +604,7 @@ function loadGame() {
   const s = readSave(); if (!s) return false;
   G = s.G; G.busy = false;
   for (const p of G.players) { p.explored = Uint8Array.from(p.explored); p.visible = Uint8Array.from(p.visible); p.tech = p.tech || {}; } // bản lưu trước khi có nâng cấp: coi như chưa có
-  placing = null; sel = null; selPick = null; selB = null; tab = 'eco'; selReach = new Map(); selTargets = new Map(); selAtk = new Set(); floaters.length = 0;
+  placing = null; sel = null; selPick = null; selB = null; techOpen = false; selReach = new Map(); selTargets = new Map(); selAtk = new Set(); floaters.length = 0;
   for (const p of G.players) updateVision(p);
   log('Đã tải ván đã lưu.', 'info');
   document.getElementById('overlay').classList.remove('show');
@@ -406,7 +615,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('pagehide', saveGame);
 
 // ---------- Tiện ích ----------
-function log(msg, cls = '') { G.log.push({ t: G.turn, msg, cls }); if (G.log.length > 60) G.log.shift(); if (cls === 'good' || cls === 'bad') toast(msg, cls); }
+function log(msg, cls = '') { G.log.push({ t: G.turn, msg, cls }); if (G.log.length > 60) G.log.shift(); if (cls === 'good' || cls === 'bad' || cls === 'warn') toast(msg, cls); }
 // Thông báo nổi góc trên bản đồ (việc tốt/xấu), tự tắt sau 5 giây, bấm để tắt; không bị che khi rê chuột như nhật ký
 function toast(msg, cls) {
   const box = document.getElementById('toasts'); if (!box) return;
@@ -434,14 +643,14 @@ function techSum(p, key, sub) { // cộng dồn hiệu ứng `key` (atk/def/load
   if (p && p.tech) for (const id in p.tech) { const e = TECHS[id] && TECHS[id][key]; if (e && e[sub]) s += e[sub]; }
   return s;
 }
-const atkBonus = x => techSum(G.players[x.owner], 'atk', x.type); // x: quân trên bản đồ hoặc quân cờ trong trận (đều có owner, type)
-const defBonus = x => techSum(G.players[x.owner], 'def', x.type);
+const atkBonus = x => techSum(G.players[x.owner], 'atk', x.type) + civAtk(G.players[x.owner], x.type); // x: quân trên bản đồ hoặc quân cờ trong trận (đều có owner, type)
+const defBonus = x => techSum(G.players[x.owner], 'def', x.type) + civDef(G.players[x.owner], x.type);
 const atkOf = x => UNITS[x.type].atk + atkBonus(x);
 const defOf = x => UNITS[x.type].def + defBonus(x);
 const withBonus = (v, b) => (b ? `${v + b} (+${b})` : `${v}`); // "4 (+1)"
-const farmAmtOf = p => FARM_AMT + (hasTech(p, 'farm') ? TECHS.farm.farmAmt : 0);
+const farmAmtOf = p => Math.round(FARM_AMT * (1 + civFarmPct(p))) + (hasTech(p, 'farm') ? TECHS.farm.farmAmt : 0);
 // Quân một nhà đang bán: bản nâng cấp mới nhất của từng dòng (Nhà lính bán Lính rìu thay Lính chùy sau khi có Rìu đồng…)
-const trainList = (p, bid) => (TRAINS[bid] || []).filter(id => UNITS[id].age <= p.age).map(id => lineOf(p, id));
+const trainList = (p, bid) => (TRAINS[bid] || []).filter(id => UNITS[id].age <= p.age).map(id => lineOf(p, id)).filter(id => !civBanned(p, id));
 const techQueued = (p, id) => bldOf(p).some(b => b.queue.some(x => x.kind === 'tech' && x.id === id));
 const myUnits = pid => G.units.filter(u => u.owner === pid);
 const bldOf = p => Object.values(G.bld).filter(b => b.owner === p.id);
@@ -453,11 +662,12 @@ function canAfford(p, cost) { return Object.entries(cost).every(([k, v]) => p.re
 function pay(p, cost, sign = -1) { for (const k in cost) p.res[k] += sign * cost[k]; }
 
 function updateVision(p) {
+  if (p.id === 1 && gDiff().omni) { p.visible.fill(1); p.explored.fill(1); return; } // AI Rất khó thấy toàn bộ bản đồ
   p.visible.fill(0);
   const see = (i, r) => { for (const j of within(i, r)) { p.visible[j] = 1; p.explored[j] = 1; } };
   see(p.city.i, 2);
   for (const b of bldOf(p)) if (b.done) see(b.tile, 1);
-  for (const u of G.units) if (u.owner === p.id) see(u.i, ust(u).vision + (G.t[u.i] === HILLS ? 2 : 0));
+  for (const u of G.units) if (u.owner === p.id) see(u.i, ust(u).vision + civAdd(p, 'vision', u.type) + (G.t[u.i] === HILLS ? 2 : 0));
 }
 function canSee(pid, u) {
   if (u.owner === pid) return true;
@@ -496,8 +706,8 @@ function killAnimal(i) { G.dead = G.dead || {}; G.dead[i] = true; if (G.ahp) del
 function gatherAt(p, i) {
   if (liveElephant(i)) return null; // voi còn sống: phải săn hạ trước
   const b = G.bld[i];
-  if (b) return b.id === 'farm' && b.done && b.owner === p.id ? { res: 'food', load: FARM_LOAD, d: dropDist(p, i, 'food'), farm: b } : null;
-  if (isMine(i)) { const res = MINE_RES[G.t[i]]; return { res, load: LOAD + techSum(p, 'load', res), d: dropDist(p, i, res) }; }
+  if (b) return b.id === 'farm' && b.done && b.owner === p.id ? { res: 'food', load: FARM_LOAD + civLoad(p, 'farm'), d: dropDist(p, i, 'food'), farm: b } : null;
+  if (isMine(i)) { const res = MINE_RES[G.t[i]]; return { res, load: LOAD + techSum(p, 'load', res) + civLoad(p, res, ...(res === 'food' ? [isMeat(i) ? 'meat' : 'berry'] : [])), d: dropDist(p, i, res) }; }
   return null;
 }
 const gatherInfo = (p, u) => isVil(u) && u.build == null ? gatherAt(p, u.i) : null;
@@ -524,7 +734,7 @@ function spawn(p, type, from) { // tìm ô trống gần `from` nhất
       if (seen.has(n) || !isFinite(TERRAIN[G.t[n]].cost) || cityAt(n)) continue;
       seen.add(n);
       if (!unitAt(n) && !G.bld[n]) {
-        const d = UNITS[type], u = { id: G.uid++, owner: p.id, type, i: n, hp: d.hp, mp: d.mp, moved: false, attacked: false, build: null, goto: null, trip: 0, stuck: 0 };
+        const d = UNITS[type], u = { id: G.uid++, owner: p.id, type, i: n, hp: unitHp(p, type), mp: unitMp(p, type), moved: false, attacked: false, build: null, goto: null, trip: 0, stuck: 0 };
         G.units.push(u); return u;
       }
       q.push(n);
@@ -550,8 +760,8 @@ function buildSites(p, id) { // kho đặt được trên mọi ô Đất trốn
 }
 function startBuild(p, u, id, tile) {
   const d = BUILDINGS[id];
-  if (!u || !isVil(u) || d.age > p.age || (d.req && !countBld(p, d.req, true)) || !canAfford(p, d.cost) || !buildSites(p, id).includes(tile)) return false;
-  pay(p, d.cost);
+  if (!u || !isVil(u) || d.age > p.age || (d.req && !countBld(p, d.req, true)) || !canAfford(p, bldCost(p, id)) || !buildSites(p, id).includes(tile)) return false;
+  pay(p, bldCost(p, id));
   G.bld[tile] = { tile, owner: p.id, id, hp: Math.ceil(d.hp / 2), max: d.hp, prog: 0, need: d.turns, done: false, queue: [], amt: id === 'farm' ? farmAmtOf(p) : 0 };
   u.build = tile; u.goto = null;
   return true;
@@ -566,14 +776,15 @@ function train(p, where, id) {
   const q = queueOf(p, where), d = UNITS[id];
   if (!q || q.queue.length >= QUEUE_MAX || d.age > p.age || d.at !== (where === 'city' ? 'city' : q.id)) return false;
   if (where !== 'city' && !trainList(p, q.id).includes(id)) return false;
-  if (!canAfford(p, d.cost) || popUsed(p) >= popCap(p)) return false;
-  pay(p, d.cost); q.queue.push({ kind: 'unit', id, left: d.turns });
+  const cost = unitCost(p, id);
+  if (!canAfford(p, cost) || popUsed(p) >= popCap(p)) return false;
+  pay(p, cost); q.queue.push({ kind: 'unit', id, left: d.turns, paid: { ...cost } });
   return true;
 }
 // Nghiên cứu: xếp chung hàng chờ với huấn luyện; mỗi nâng cấp chỉ ở một nơi một lúc
 function canResearch(p, where, id) {
   const q = queueOf(p, where), t = TECHS[id];
-  return !!(q && t && where !== 'city' && q.id === t.at && t.age <= p.age && (!t.req || hasTech(p, t.req)) && !hasTech(p, id) && !techQueued(p, id) && q.queue.length < QUEUE_MAX);
+  return !!(q && t && where !== 'city' && !civBanned(p, id) && q.id === t.at && t.age <= p.age && (!t.req || hasTech(p, t.req)) && !hasTech(p, id) && !techQueued(p, id) && q.queue.length < QUEUE_MAX);
 }
 function research(p, where, id) {
   if (!canResearch(p, where, id) || !canAfford(p, TECHS[id].cost)) return false;
@@ -586,7 +797,7 @@ function finishTech(p, id) {
   p.tech = p.tech || {}; p.tech[id] = true;
   if (t.farmAmt) for (const b of bldOf(p)) if (b.id === 'farm') b.amt += t.farmAmt; // ruộng đang có cũng được cộng
   if (t.upgrade) {
-    const [from, to] = t.upgrade, gain = UNITS[to].hp - UNITS[from].hp;
+    const [from, to] = t.upgrade, gain = unitHp(p, to) - unitHp(p, from);
     for (const u of myUnits(p.id)) if (u.type === from) { u.type = to; u.hp = Math.max(1, u.hp + gain); } // giữ nguyên phần Máu đã mất
   }
 }
@@ -603,7 +814,7 @@ function cancelTrain(p, where, k) { // k: vị trí mục trong hàng chờ (kh�
   const it = q.queue.splice(k, 1)[0];
   if (it.kind === 'age') pay(p, it.paid || AGE_UP[ageOfItem(it)].cost, 1);
   else if (it.kind === 'tech') pay(p, it.paid || TECHS[it.id].cost, 1);
-  else pay(p, UNITS[it.id].cost, 1);
+  else pay(p, it.paid || unitCost(p, it.id), 1);
 }
 
 function economy(p) {
@@ -625,15 +836,15 @@ function economy(p) {
     let amt = g.load;
     if (g.farm) {
       amt = Math.min(amt, g.farm.amt); g.farm.amt -= amt;
-      if (g.farm.amt <= 0) { destroyBld(u.i); if (me) log('Một Ruộng lúa đã cạn, ô trở lại Đất trống.', 'info'); }
+      if (g.farm.amt <= 0) { destroyBld(u.i); if (me) log('🌱 Một Ruộng lúa đã cạn, ô trở lại Đất trống. Dân ở đó đang rảnh.', 'warn'); }
     } else if (MINE_RES[G.t[u.i]]) {
       amt = Math.min(amt, G.amt[u.i]); G.amt[u.i] -= amt;
       if (G.amt[u.i] <= 0) {
-        if (me) log(`${TERRAIN[G.t[u.i]].name} đã cạn và trở thành Đất trống.`, 'info');
+        if (me) log(`${RES_ICON_TXT[g.res]} ${TERRAIN[G.t[u.i]].name} đã cạn và trở thành Đất trống. Dân ở đó đang rảnh.`, 'warn');
         G.t[u.i] = EMPTY; for (const k of ['dead', 'ahp']) if (G[k]) delete G[k][u.i]; // xóa dấu vết con thú
       }
     }
-    p.res[g.res] += amt;
+    p.res[g.res] += me ? amt : Math.round(amt * aiCfg().gather / 100); // AI khai thác theo độ khó
     if (me) floater(u.i, `+${amt}${RES_ICON_TXT[g.res]}`, '#fff');
   }
   // 2) xây dựng: cần một dân được giao việc đứng kề công trình
@@ -884,7 +1095,7 @@ function atkZone(u, grp, mv, full) {
 // Tầm của một đạo/đơn vị khi rê chuột: full = tính với MP đầy (xem trước lượt tới, dùng cho quân địch hoặc quân đã đi)
 function rangeOf(u, full) {
   const grp = isVil(u) ? [u] : armyAt(u.i, u.owner), save = grp.map(m => m.mp);
-  if (full) for (const m of grp) m.mp = ust(m).mp;
+  if (full) for (const m of grp) m.mp = maxMp(m);
   const mv = reach(u, u.owner === 0, grp);
   if (full) grp.forEach((m, k) => { m.mp = save[k]; });
   return { mv, atk: atkZone(u, grp, mv, full) };
@@ -900,8 +1111,10 @@ function dmgCore(att, dType, df, k, rand) { // att: quân đánh (có type, owne
   const r = rand ? 0.85 + Math.random() * 0.3 : 1;
   return Math.max(1, Math.round(atkOf(att) * m * 2 * k * r) - df);
 }
+// Thủ của mục tiêu trước một quân đánh: thêm Thủ riêng trước Cung thủ theo đế chế ('defArc', Macedonian)
+const defVs = (att, tgt) => defOf(tgt) + (UNITS[att.type].cls === 'archer' ? civAdd(G.players[tgt.owner], 'defArc', tgt.type) : 0);
 function calcDmg(att, tgt, k, rand) {
-  if (tgt.u) return dmgCore(att, tgt.u.type, defOf(tgt.u) + TERRAIN[G.t[tgt.u.i]].def, k, rand);
+  if (tgt.u) return dmgCore(att, tgt.u.type, defVs(att, tgt.u) + TERRAIN[G.t[tgt.u.i]].def, k, rand);
   return dmgCore(att, null, 1, k, rand);
 }
 function retalDmg(att, tgt, dist, rand) {
@@ -961,8 +1174,8 @@ function groupAttack(grp, tgt) { // cả đạo đánh dân làng / công trình
 function refreshUnits(pid) {
   for (const u of G.units) if (u.owner === pid) {
     const s = ust(u);
-    if (!u.moved && !u.attacked && u.hp < s.hp) u.hp = Math.min(s.hp, u.hp + 2);
-    u.mp = s.mp; u.moved = false; u.attacked = false;
+    if (!u.moved && !u.attacked && u.hp < maxHp(u)) u.hp = Math.min(maxHp(u), u.hp + 2);
+    u.mp = maxMp(u); u.moved = false; u.attacked = false;
   }
 }
 function gameOver(winner, reason) {
@@ -1027,7 +1240,7 @@ function aiResearch(p, mil, vills) { // mỗi lượt bắt đầu tối đa 1 n
     ['wood2', true],
     ['stone2', true],
   ];
-  const reserve = UNITS[inf].cost;
+  const reserve = unitCost(p, inf);
   for (const [id, cond] of order) {
     const t = TECHS[id];
     if (!cond || t.age > p.age || (t.req && !hasTech(p, t.req)) || hasTech(p, id) || techQueued(p, id)) continue;
@@ -1108,7 +1321,7 @@ function aiEconomy(p) {
   // Nhà chính: lên đời hoặc ra dân
   if (!c.queue.length) {
     if (saving && canAfford(p, na.cost)) startAge(p);
-    else if (vills.length < [0, 10, 16, 20][p.age] && (!saving || p.res.food >= ageFood + 60)) train(p, 'city', 'vil');
+    else if (vills.length < [0, 10, 16, 20][p.age] + ((civOf(p).ai || {}).vil || 0) && (!saving || p.res.food >= ageFood + 60)) train(p, 'city', 'vil');
   }
   // Nâng cấp (trước khi mua quân, để Nhà lính rảnh còn kịp nghiên cứu Rìu đồng)
   aiResearch(p, mil, vills);
@@ -1122,8 +1335,9 @@ function aiEconomy(p) {
     const inf = lineOf(p, 'club'), spear = lineOf(p, 'spear'), arc = lineOf(p, 'archer'), cav = lineOf(p, 'cav');
     // Xe chiến (không tốn Vàng) khi thấy nhiều Cung thủ địch hoặc đang thiếu Vàng
     const foeArc = G.units.filter(u => u.owner !== p.id && UNITS[u.type].cls === 'archer' && canSee(p.id, u)).length;
-    const stableId = p.age >= 3 && (foeArc >= 2 || p.res.gold < UNITS[cav].cost.gold + 30) ? 'chariot' : cav;
-    const id = b.id === 'range' ? arc : b.id === 'stable' ? stableId : p.age < 2 ? inf : (p.res.gold >= UNITS[spear].cost.gold && n(spear) <= n(inf) ? spear : inf);
+    const inf2 = civBanned(p, spear) ? inf : spear; // đế chế không có Lính giáo: mua bộ binh thường
+    const stableId = !civBanned(p, 'chariot') && (civBanned(p, cav) || (p.age >= 3 && (foeArc >= 2 || p.res.gold < (unitCost(p, cav).gold || 0) + 30))) ? 'chariot' : cav;
+    const id = b.id === 'range' ? arc : b.id === 'stable' ? stableId : p.age < 2 ? inf : (p.res.gold >= (unitCost(p, inf2).gold || 0) && n(inf2) <= n(inf) ? inf2 : inf);
     if (b.id === 'range' && n(arc) * 3 > mil.length + 2) continue;
     if (train(p, b.tile, id)) queued++;
   }
@@ -1148,7 +1362,7 @@ function aiEconomy(p) {
 const armyPower = list => list.reduce((a, m) => a + m.hp * (atkOf(m) + defOf(m)), 0);
 async function aiArmy(grp, p, ctx) {
   const human = G.players[0], home = p.city.i, u = grp[0];
-  const marching = grp.length >= 4 || (D(u.i, home) > 5 && grp.length >= 2); // đạo đủ đông mới kéo đi
+  const march = aiCfg().march, marching = grp.length >= march || (D(u.i, home) > 5 && grp.length >= 2); // đạo đủ đông mới kéo đi
   const rc = reach(u, false, grp);
   let best = null, bs = 0;
   for (const t of attackTargets(grp, rc).values()) {
@@ -1174,7 +1388,7 @@ async function aiArmy(grp, p, ctx) {
   }
   let dm = null;
   // Ưu tiên gom quân: đạo chưa đủ 4 lính tìm đạo bạn chưa đầy ở gần để nhập vào, trước cả việc đuổi địch
-  const mates = grp.length >= 4 ? [] : [...new Set(myUnits(p.id).filter(m => !isVil(m) && m.i !== u.i && D(m.i, u.i) <= 6).map(m => m.i))]
+  const mates = grp.length >= march ? [] : [...new Set(myUnits(p.id).filter(m => !isVil(m) && m.i !== u.i && D(m.i, u.i) <= 6).map(m => m.i))]
     .map(t => ({ t, n: armyAt(t, p.id).length })).filter(a => a.n + grp.length <= ARMY_MAX && (a.n > grp.length || (a.n === grp.length && a.t < u.i)))
     .sort((a, b) => b.n - a.n || D(u.i, a.t) - D(u.i, b.t));
   if (mates.length) dm = distMap(mates[0].t, u);
@@ -1201,8 +1415,8 @@ async function aiTurn() {
   // Tách quân: lính còn ≤ 35% Máu rời đạo (đạo phải còn người ở lại), lui về gần nhà rồi đứng yên hồi máu tới khi đầy
   for (const m of myUnits(1)) {
     if (isVil(m)) continue;
-    if (m.rest && m.hp >= ust(m).hp) m.rest = false;
-    if (!m.rest && canSplit(m) && m.hp <= ust(m).hp * 0.35 && armyAt(m.i, 1).some(o => o !== m && o.hp > ust(o).hp * 0.35)) m.rest = true;
+    if (m.rest && m.hp >= maxHp(m)) m.rest = false;
+    if (!m.rest && canSplit(m) && m.hp <= maxHp(m) * 0.35 && armyAt(m.i, 1).some(o => o !== m && o.hp > maxHp(o) * 0.35)) m.rest = true;
   }
   for (const m of myUnits(1).filter(x => x.rest && canSplit(x))) {
     if (D(m.i, p.city.i) <= 2) continue; // đã về tới nhà: đứng yên để hồi máu
@@ -1400,9 +1614,10 @@ document.addEventListener('keydown', e => {
   if (!G || document.getElementById('overlay').classList.contains('show')) return;
   if (e.key === 'Enter') { e.preventDefault(); endTurn(); }
   else if (e.key === 'n' || e.key === 'N' || e.key === 'Tab') { e.preventDefault(); if (!G.busy) nextUnit(); }
+  else if (e.key === 'Escape' && techOpen) { techOpen = false; renderUI(); }
   else if (e.key === 'Escape') { placing = null; select(null); selB = null; renderUI(); }
   else if ((e.key === 'h' || e.key === 'H') && !G.busy) { selectBld('city'); renderUI(); }
-  else if (['1', '2', '3'].includes(e.key)) { tab = ['eco', 'mil', 'tech'][+e.key - 1]; renderUI(); }
+  else if (e.key === 't' || e.key === 'T') { techOpen = !techOpen; renderUI(); }
   else if (e.key === 'm' || e.key === 'M') toggleMini();
   else if (e.key === 'b' || e.key === 'B') togglePanel();
   else if (e.key === '+' || e.key === '=') zoomStep(1);
@@ -1423,7 +1638,10 @@ document.addEventListener('mouseover', e => {
   const t = e.target.closest && e.target.closest('[data-tip]'); if (!t) return;
   const box = t.closest('.card') && t.closest('.card').querySelector('.bdesc'); if (box) { box.innerHTML = t.dataset.tip; box.classList.remove('muted'); }
 });
-document.addEventListener('change', e => { if (e.target.id === 'zoomsel') setZoom(+e.target.value); });
+document.addEventListener('change', e => {
+  if (e.target.id === 'zoomsel') setZoom(+e.target.value);
+  if (e.target.dataset.civsel) { setCiv(e.target.value, e.target.dataset.civsel === 'ai'); showMenu(); } // droplist đế chế ở Ván mới
+});
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const [act, a, c] = b.dataset.act.split(':');
@@ -1439,6 +1657,8 @@ document.addEventListener('click', e => {
   if (act === 'cfg') { adminAct(a); return; }
   if (act === 'unselb') { selB = null; renderUI(); return; }
   if (act === 'mapmode') { setMapMode(a); showMenu(); return; }
+  if (act === 'startage') { setStartAge(a); showMenu(); return; }
+  if (act === 'diff') { setDiff(a); showMenu(); return; }
   if (act === 'tac') {
     tacticalOn = !tacticalOn;
     try { localStorage.setItem('tac', tacticalOn ? '1' : '0'); } catch (err) { /* bỏ qua */ }
@@ -1457,12 +1677,12 @@ document.addEventListener('click', e => {
   else if (act === 'splithalf') splitHalf();
   else if (act === 'unpick' && sel) select(sel);
   else if (act === 'selb') selectBld(a === 'city' ? 'city' : +a);
-  else if (act === 'tab') tab = a;
+  else if (act === 'techwin') techOpen = !techOpen;
   else if (act === 'train') train(me, where, c);
   else if (act === 'age') { const na = nextAge(me); if (startAge(me)) log(`Bắt đầu tiến lên ${na.name}.`, 'info'); }
   else if (act === 'canceltrain') cancelTrain(me, where, c == null ? null : +c);
   else if (act === 'research') research(me, where, c);
-  else if (act === 'techgo') { const b = bldOf(me).find(x => x.id === a && x.done); if (b) selectBld(b.tile); }
+  else if (act === 'techgo') { const b = bldOf(me).find(x => x.id === a && x.done); if (b) { selectBld(b.tile); techOpen = false; } }
   else if (act === 'bld') { if (sel && isVil(sel)) placing = { id: a, uid: sel.id, crew: selGroup().map(m => m.id) }; }
   else if (act === 'unplace') placing = null;
   else if (act === 'stop' && sel) { for (const m of selGroup()) { m.goto = null; m.build = null; } }
@@ -1496,7 +1716,7 @@ function tipHtml(i) {
   if (us.length > 1 && !isVil(us[0])) h += `<hr style="border-color:#445;margin:4px 0"><b>Đạo quân ×${us.length}</b> (${us[0].owner ? 'địch' : 'bạn'})`;
   for (const u of us.slice(0, 5)) {
     const s = ust(u);
-    h += `<hr style="border-color:#445;margin:4px 0"><b>${s.ico} ${s.name}</b> (${u.owner ? 'địch' : 'bạn'})<br>Máu ${u.hp}/${s.hp}` + (s.atk ? ` · Công ${withBonus(s.atk, atkBonus(u))} · Thủ ${withBonus(s.def, defBonus(u))}` : ' · không chiến đấu');
+    h += `<hr style="border-color:#445;margin:4px 0"><b>${s.ico} ${s.name}</b> (${u.owner ? 'địch' : 'bạn'})<br>Máu ${u.hp}/${maxHp(u)}` + (s.atk ? ` · Công ${withBonus(s.atk, atkBonus(u))} · Thủ ${withBonus(s.def, defBonus(u))}` : ' · không chiến đấu');
   }
   if (us.length && !G.busy) {
     const u0 = us[0], own = u0.owner === 0, armed = us.some(u => ust(u).atk > 0);
@@ -1538,10 +1758,11 @@ function queueProgressHtml(where, q) {
 function trainOptsHtml(p, where, q, opts) {
   const full = popUsed(p) >= popCap(p), qfull = q.queue.length >= QUEUE_MAX;
   return '<div class="tgrid">' + opts.map(id => {
-    const d = UNITS[id], n = q.queue.filter(x => x.kind === 'unit' && x.id === id).length, poor = !canAfford(p, d.cost);
-    const st = `❤${d.hp} · ⚔${withBonus(d.atk, techSum(p, 'atk', id))} · 🛡${withBonus(d.def, techSum(p, 'def', id))} · ${d.mp} MP${d.range > 1 ? ` · tầm ${d.range}` : ''}`;
+    const d = UNITS[id], cost = unitCost(p, id), n = q.queue.filter(x => x.kind === 'unit' && x.id === id).length, poor = !canAfford(p, cost);
+    const st = `❤${unitHp(p, id)} · ⚔${withBonus(d.atk, techSum(p, 'atk', id) + civAtk(p, id))} · 🛡${withBonus(d.def, techSum(p, 'def', id) + civDef(p, id))} · ${unitMp(p, id)} MP${d.range > 1 ? ` · tầm ${d.range}` : ''}`;
     const note = full ? '⚠ Hết chỗ dân số — xây thêm Nhà dân' : qfull ? `Hàng chờ đã đầy (${QUEUE_MAX})` : poor ? '⚠ Chưa đủ tài nguyên' : n ? `Đang chờ ${n} — bấm để xếp thêm` : 'Bấm để mua';
-    const tip = `<b>${d.name}</b><br>${costStr(d.cost)} · ${d.turns} lượt<br>${st}<br>${d.desc}<br><i>${note}</i>`;
+    const cut = JSON.stringify(cost) !== JSON.stringify(d.cost) ? ` <s class="muted">${costStr(d.cost)}</s> <span class="muted">(${civOf(p).name})</span>` : '';
+    const tip = `<b>${d.name}</b><br>${costStr(cost)}${cut} · ${d.turns} lượt<br>${st}<br>${d.desc}<br><i>${note}</i>`;
     return `<span class="tt-w" data-tt="${attrEsc(tip)}"><button class="tic unit${poor || full || qfull ? ' poor' : ' ready'}" data-act="train:${where}:${id}" ${!poor && !full && !qfull ? '' : 'disabled'}>${bigIco('units/' + id)}${n ? `<b class="qn">×${n}</b>` : ''}</button></span>`;
   }).join('') + '</div>';
 }
@@ -1550,6 +1771,7 @@ function techState(p, id) {
   const t = TECHS[id];
   if (hasTech(p, id)) return { done: true, txt: '✅ Đã nghiên cứu' };
   for (const b of bldOf(p)) { const k = b.queue.findIndex(x => x.kind === 'tech' && x.id === id); if (k >= 0) return { busy: true, txt: k ? '⏳ Đang chờ trong hàng' : `⏳ Đang nghiên cứu · còn ${b.queue[k].left} lượt` }; }
+  if (civBanned(p, id)) return { locked: true, txt: `🚫 ${civOf(p).name} không có` };
   if (t.age > p.age) return { locked: true, txt: '🔒 Cần ' + AGE_UP[t.age].name };
   if (t.req && !hasTech(p, t.req)) return { locked: true, txt: '🔒 Cần ' + TECHS[t.req].name };
   return { txt: '' };
@@ -1631,6 +1853,7 @@ function renderUI() {
   document.getElementById('top').innerHTML = `
     <span class="stat">Lượt <b>${G.turn}</b></span>
     <span class="stat age a${me.age}" title="Kỷ nguyên hiện tại (${me.age}/${MAX_AGE})">${AGES[me.age].split(' · ').map((s, k) => (k ? `<span class="wide"> · ${s}</span>` : s)).join('')}<span class="pips">${[1, 2, 3].map(n => (n <= me.age ? '●' : '○')).join('')}</span></span>
+    ${G.players.some(p => p.civ && p.civ !== 'none') ? G.players.map(p => { const c = civOf(p); return `<span class="stat civb" style="border-color:${p.color}" data-tt="${attrEsc(`<b>${p.name}: ${c.name}</b>${c.arch ? ' · ' + c.arch : ''}<br>${civTip(c)}`)}">${p.id ? '⚑' : '★'} <b>${c.name}</b></span>`; }).join('') : ''}
     ${stat('food')}${stat('wood')}${stat('stone')}${stat('gold')}
     <span class="stat" title="Dân số đang dùng / giới hạn (dân làng + quân). Mỗi Nhà dân +${CFG.pop.perHouse}, tối đa ${POP_MAX}">👥 <b>${popUsed(me)}/${popCap(me)}</b></span>
     <span class="spacer"></span>
@@ -1646,7 +1869,7 @@ function renderUI() {
   const hint = '<div class="muted">Ô sáng: đi ngay · Ô xa: tự đi nhiều lượt · Chuột phải/Esc: bỏ chọn</div>';
   const unitRow = (u, label, on) => { const ready = (isVil(u) ? [u] : armyAt(u.i, 0)).some(needsOrders); return `<button class="opt unit ${ready ? 'ready' : 'spent'}${on ? ' on' : ''}" data-act="sel:${u.id}">${label}<span class="c">${unitStatus(me, u)}</span></button>`; };
   // Thanh dọc: danh sách dân làng và đạo quân để chọn nhanh
-  const lists = `<div class="card"><h3>👷 Dân làng · ${vills.length} (${idleV} rảnh)</h3>${vills.map(u => unitRow(u, `${ust(u).ico} Dân làng · ❤${u.hp}/${ust(u).hp}`, u === sel)).join('') || '<div class="muted">Không còn dân làng. Bấm Nhà chính để mua.</div>'}</div>
+  const lists = `<div class="card"><h3>👷 Dân làng · ${vills.length} (${idleV} rảnh)</h3>${vills.map(u => unitRow(u, `${ust(u).ico} Dân làng · ❤${u.hp}/${maxHp(u)}`, u === sel)).join('') || '<div class="muted">Không còn dân làng. Bấm Nhà chính để mua.</div>'}</div>
     <div class="card"><h3>⚔ Đạo quân · ${stacks.length} đạo, ${army.length} lính</h3>${stacks.map(st => unitRow(st[0], `Đạo ×${st.length} ${st.map(m => ust(m).ico).join('')}`, st.includes(sel))).join('') || '<div class="muted">Chưa có quân.</div>'}</div>`;
   let h = '', cmd = '';
   if (sel && isVil(sel)) {
@@ -1667,10 +1890,11 @@ function renderUI() {
     cmd += `<div class="card"><h3>🔨 Xây dựng</h3>` + (placing ? `<div class="place">📍 Bấm một ô <b>Đất trống</b> viền vàng để đặt ${BUILDINGS[placing.id].name}${BUILDINGS[placing.id].drop ? ' (kho đặt được cả ngoài lãnh thổ)' : ''}. <button class="btn" data-act="unplace">Hủy</button></div>` : '') + '<div class="bgrid">';
     for (const [id, d] of Object.entries(BUILDINGS)) {
       const locked = d.age > me.age, needs = d.req && !countBld(me, d.req, true);
-      const desc = id === 'farm' ? `1 dân, ${FARM_LOAD} Thức ăn/chuyến, cạn sau ${farmAmtOf(me)}${hasTech(me, 'farm') ? ' (nhờ Thuần hóa)' : ''}` : d.desc;
+      const desc = id === 'farm' ? `1 dân, ${FARM_LOAD + civLoad(me, 'farm')} Thức ăn/chuyến, cạn sau ${farmAmtOf(me)}${hasTech(me, 'farm') ? ' (nhờ Thuần hóa)' : ''}` : d.desc;
       const why = locked ? '🔒 Cần ' + AGE_UP[d.age].name : needs ? `🔒 Cần xây xong ${BUILDINGS[d.req].name}` : desc;
-      const tip = `<b>${d.name}</b> · ${costStr(d.cost)} · ${d.turns} lượt<br>${why}`;
-      cmd += `<span class="bt-w" data-tip="${attrEsc(tip)}"><button class="bt${locked || needs ? ' lock' : ''}${placing && placing.id === id ? ' on' : ''}" data-act="bld:${id}" ${!locked && !needs && canAfford(me, d.cost) && (freeN || d.drop) ? '' : 'disabled'}>${bigIco('buildings/' + id)}<i>${d.name}</i><small>${costStr(d.cost)}</small></button></span>`;
+      const bc = bldCost(me, id), bcut = JSON.stringify(bc) !== JSON.stringify(d.cost) ? ` <s class="muted">${costStr(d.cost)}</s> <span class="muted">(${civOf(me).name})</span>` : '';
+      const tip = `<b>${d.name}</b> · ${costStr(bc)}${bcut} · ${d.turns} lượt<br>${why}`;
+      cmd += `<span class="bt-w" data-tip="${attrEsc(tip)}"><button class="bt${locked || needs ? ' lock' : ''}${placing && placing.id === id ? ' on' : ''}" data-act="bld:${id}" ${!locked && !needs && canAfford(me, bc) && (freeN || d.drop) ? '' : 'disabled'}>${bigIco('buildings/' + id)}<i>${d.name}</i><small>${costStr(bc)}</small></button></span>`;
     }
     cmd += `</div><div class="bdesc muted">Rê chuột lên một nhà để xem mô tả.</div></div>`;
   } else if (sel) {
@@ -1728,35 +1952,7 @@ function renderUI() {
       return qbtn(b.tile, 'buildings/' + k, (k === 'site' ? 'Đang xây' : BUILDINGS[k].name) + (list.length > 1 ? ` ×${list.length}` : ''), (list.length > 1 ? '×' + list.length : '') + (busy ? '⏳' + busy.queue.length : ''));
     }).join('') + '</div>';
 
-  // ----- 2) Ba tab tổng quan -----
-  const tabBtn = (id, label, n) => `<button class="tab${tab === id ? ' on' : ''}" data-act="tab:${id}">${label}${n ? ` <i>${n}</i>` : ''}</button>`;
-  const top = `<div class="tabs">${tabBtn('eco', '💰 Kinh tế', idleV)}${tabBtn('mil', '⚔ Quân sự', idleA)}${tabBtn('tech', '🔧 Kỹ thuật', 0)}</div>`;
-  const qIcons = q => (q.queue.length ? q.queue.map(x => (x.kind === 'age' ? '⬆️' : x.kind === 'tech' ? TECHS[x.id].ico : UNITS[x.id].ico)).join('') + ` · còn ${q.queue[0].left} lượt` : 'rảnh');
-  const mine = bldOf(me);
-  if (tab === 'eco') {
-    cmd += `<div class="card"><h3>Thu nhập mỗi lượt (ước tính)</h3>
-      <div class="tags">${Object.keys(inc).map(k => `<span>${resIco(k)} +${inc[k]}</span>`).join('')}<span>👥 ${popUsed(me)}/${popCap(me)}</span></div>
-      <button class="opt${selB === 'city' ? ' on' : ''}" data-act="selb:city">🏠 Nhà chính<span class="c">${qIcons(c)}</span></button></div>`;
-    const sites = mine.filter(b => !b.done), eco = mine.filter(b => b.done && !TRAINS[b.id]);
-    if (sites.length) cmd += `<div class="card"><h3>🚧 Đang xây</h3>${sites.map(b => `<button class="opt${selB === b.tile ? ' on' : ''}" data-act="selb:${b.tile}">${BUILDINGS[b.id].ico} ${BUILDINGS[b.id].name}<span class="c">${b.prog}/${b.need}${G.units.some(u => u.build === b.tile) ? '' : ' · ⚠ chưa có dân xây'}</span></button>`).join('')}</div>`;
-    if (eco.length) { const cnt = {}; for (const b of eco) cnt[b.id] = (cnt[b.id] || 0) + 1; cmd += `<div class="card"><h3>Công trình kinh tế</h3><div class="tags">${Object.entries(cnt).map(([id, n]) => `<span>${BUILDINGS[id].ico} ${BUILDINGS[id].name} ×${n}</span>`).join('')}</div></div>`; }
-  } else if (tab === 'mil') {
-    const tb = mine.filter(b => b.done && TRAINS[b.id]);
-    cmd += `<div class="card"><h3>Nhà huấn luyện</h3>${tb.map(b => `<button class="opt${selB === b.tile ? ' on' : ''}" data-act="selb:${b.tile}">${BUILDINGS[b.id].ico} ${BUILDINGS[b.id].name}<span class="c">${qIcons(b)}</span></button>`).join('') || '<div class="muted">Chưa có. Chọn một dân làng rồi xây Nhà lính.</div>'}
-      <div class="muted" style="margin-top:4px">Bấm một nhà để mua quân của nhà đó.</div></div>`;
-  } else {
-    const na = nextAge(me), aging = c.queue.find(x => x.kind === 'age');
-    const steps = [1, 2, 3].map(n => `<span class="astep${n < me.age ? ' done' : n === me.age ? ' cur' : ''}">${AGES[n].split('· ')[1]}</span>`).join('<i>→</i>');
-    cmd += `<div class="card"><h3>Kỷ nguyên: ${AGES[me.age]}</h3><div class="asteps">${steps}</div>`;
-    if (na) {
-      const req = na.req.map(id => `<span>${countBld(me, id, true) ? '✅' : '⬜'} ${BUILDINGS[id].name}</span>`).join('');
-      cmd += `<div class="muted">Lên ${na.name}: ${costStr(na.cost)}, ${na.turns} lượt, cần ${na.need} trong ${na.req.length} công trình:</div><div class="tags">${req}</div>
-      ${aging ? `<div class="place" style="margin-top:6px">⬆️ Đang lên đời — còn ${aging.left} lượt.</div>` : `<button class="opt" data-act="selb:city">🏠 Mở Nhà chính để lên đời<span class="c">${ageReq(me)}/${na.need} · ${costStr(na.cost)}</span></button>`}`;
-    } else cmd += `<div class="muted">Bạn đã ở đời cao nhất của phiên bản này.</div>`;
-    cmd += '</div>' + [1, 2, 3].map(n => `<div class="card${n === 3 ? ' bronze' : ''}${n > me.age ? ' dim' : ''}"><h3>${AGES[n]} mở khóa</h3>${ageUnlocks(n)}${n > 1 ? `<div class="muted" style="margin-top:4px">Lãnh thổ bán kính ${AGE_UP[n].rad}${AGE_UP[n].cityHp ? `, Nhà chính +${AGE_UP[n].cityHp} Máu` : ''}.</div>` : ''}</div>`).join('');
-    cmd += techTabHtml(me);
-  }
-  paintPanels(h, cmd, null, top, side);
+  paintPanels(h, cmd, null, '', side);
 }
 const attrEsc = s => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 // ảnh lớn của một khóa (công trình/đơn vị), không có ảnh thì dùng emoji
@@ -1764,22 +1960,43 @@ const bigIco = key => (IMG[key] ? `<img src="${IMG[key].src}" alt="">` : `<span 
 const hpCol = r => (r > 0.6 ? '#4caf50' : r > 0.3 ? '#e0b030' : '#d33');
 // Ô chỉ số một quân: chân dung + thanh máu bên trái, cột chỉ số icon bên phải (phần cộng từ nâng cấp ghi +N)
 function statBlock(u) {
-  const s = ust(u), ab = atkBonus(u), db = defBonus(u), r = u.hp / s.hp;
+  const s = ust(u), ab = atkBonus(u), db = defBonus(u), r = u.hp / maxHp(u);
   const row = (k, v, b, t) => `<div data-tt="${t}">${ico('ui/' + k)}<b>${v}</b>${b ? `<em>+${b}</em>` : ''}</div>`;
-  return `<div class="ustat"><div class="uport">${bigIco('units/' + u.type)}<div class="hpb"><i style="width:${r * 100}%;background:${hpCol(r)}"></i></div><small>${u.hp}/${s.hp}</small></div>
-    <div class="srows"><div class="sname">${s.name}</div>${row('atk', s.atk, ab, 'Công')}${row('def', s.def, db, 'Thủ')}${s.range > 1 ? row('range', s.range, 0, 'Tầm đánh') : ''}${row('mp', `${u.mp}/${s.mp}`, 0, 'Di chuyển còn lại / tối đa')}</div></div>`;
+  return `<div class="ustat"><div class="uport">${bigIco('units/' + u.type)}<div class="hpb"><i style="width:${r * 100}%;background:${hpCol(r)}"></i></div><small>${u.hp}/${maxHp(u)}</small></div>
+    <div class="srows"><div class="sname">${s.name}</div>${row('atk', s.atk, ab, 'Công')}${row('def', s.def, db, 'Thủ')}${s.range > 1 ? row('range', s.range, 0, 'Tầm đánh') : ''}${row('mp', `${u.mp}/${maxMp(u)}`, 0, 'Di chuyển còn lại / tối đa')}</div></div>`;
 }
 // Chân dung nhỏ một lính trong đạo: bấm để xem chỉ số; ô ☐ góc trên để chọn vào nhóm tách
 function mportHtml(m, f, picking) {
   const s = ust(m), on = picking && selPick.includes(m.id), why = m.attacked ? 'đã đánh' : m.mp <= 0 ? 'hết MP' : '';
-  const tip = `<b>${s.name}</b> · ❤${m.hp}/${s.hp} · ${m.mp} MP${why ? '<br><i>' + why + '</i>' : ''}`;
-  return `<div class="mport${m === f ? ' cur' : ''}${on ? ' on' : ''}${why ? ' spent' : ''}"><button class="mp-pic" data-act="focus:${m.id}" data-tt="${attrEsc(tip)}">${bigIco('units/' + m.type)}<span class="hpm"><span style="width:${m.hp / s.hp * 100}%;background:${hpCol(m.hp / s.hp)}"></span></span></button>`
+  const tip = `<b>${s.name}</b> · ❤${m.hp}/${maxHp(m)} · ${m.mp} MP${why ? '<br><i>' + why + '</i>' : ''}`;
+  return `<div class="mport${m === f ? ' cur' : ''}${on ? ' on' : ''}${why ? ' spent' : ''}"><button class="mp-pic" data-act="focus:${m.id}" data-tt="${attrEsc(tip)}">${bigIco('units/' + m.type)}<span class="hpm"><span style="width:${m.hp / maxHp(m) * 100}%;background:${hpCol(m.hp / maxHp(m))}"></span></span></button>`
     + (why ? '' : `<button class="mp-pick" data-act="pick:${m.id}" data-tt="Chọn vào nhóm tách">${on ? '☑' : '☐'}</button>`) + '</div>';
 }
 const portraitHtml = key => (key ? (IMG[key] ? `<img class="portrait" src="${IMG[key].src}" alt="">` : `<span class="portrait">${ICON_EMOJI[key] || ''}</span>`) : '');
 // Bảng dưới đáy (nhà & nâng cấp). h: thẻ công trình đang chọn (cột trái, kèm ảnh key); cmd: các thẻ lệnh xếp ngang; top: hàng tab
 // side: thanh dọc bên phải (dân làng & đạo quân)
+// Cửa sổ cây kỹ thuật (chỉ để xem): kỷ nguyên, những gì mỗi đời mở khóa, cây nâng cấp. Mở/đóng bằng nút trên thanh dọc hoặc phím T
+function techWinHtml(me) {
+  const c = me.city, na = nextAge(me), aging = c.queue.find(x => x.kind === 'age');
+  const steps = [1, 2, 3].map(n => `<span class="astep${n < me.age ? ' done' : n === me.age ? ' cur' : ''}">${AGES[n].split('· ')[1]}</span>`).join('<i>→</i>');
+  let o = `<div class="card"><h3>Kỷ nguyên: ${AGES[me.age]}</h3><div class="asteps">${steps}</div>`;
+  if (na) {
+    const req = na.req.map(id => `<span>${countBld(me, id, true) ? '✅' : '⬜'} ${BUILDINGS[id].name}</span>`).join('');
+    o += `<div class="muted">Lên ${na.name}: ${costStr(na.cost)}, ${na.turns} lượt, cần ${na.need} trong ${na.req.length} công trình:</div><div class="tags">${req}</div>
+      ${aging ? `<div class="place" style="margin-top:6px">⬆️ Đang lên đời — còn ${aging.left} lượt.</div>` : `<div class="muted" style="margin-top:4px">Bấm Nhà chính (phím H) để lên đời · ${ageReq(me)}/${na.need} công trình.</div>`}`;
+  } else o += '<div class="muted">Bạn đã ở đời cao nhất của phiên bản này.</div>';
+  o += '</div>' + [1, 2, 3].map(n => `<div class="card${n === 3 ? ' bronze' : ''}${n > me.age ? ' dim' : ''}"><h3>${AGES[n]} mở khóa</h3>${ageUnlocks(n)}${n > 1 ? `<div class="muted" style="margin-top:4px">Lãnh thổ bán kính ${AGE_UP[n].rad}${AGE_UP[n].cityHp ? `, Nhà chính +${AGE_UP[n].cityHp} Máu` : ''}.</div>` : ''}</div>`).join('');
+  return `<div class="twhead"><h2>🔧 Kỹ thuật</h2><span class="muted">Chỉ để xem · muốn nghiên cứu thì bấm vào nhà tương ứng</span><button class="btn sm" data-act="techwin" title="Đóng (T hoặc Esc)">✖ Đóng</button></div>
+    <div class="twages">${o}</div><div class="twtree">${techTabHtml(me)}</div>`;
+}
+function renderTechWin() {
+  const w = document.getElementById('techwin'); if (!w) return;
+  w.classList.toggle('show', !!(G && techOpen));
+  if (G && techOpen) { const sc = w.scrollTop; w.innerHTML = techWinHtml(G.players[0]); w.scrollTop = sc; }
+}
 function paintPanels(h, cmd, key, top = '', side = '') {
+  side = `<button class="btn techbtn${techOpen ? ' on' : ''}" data-act="techwin" title="Xem cây kỹ thuật (phím T)">🔧 Kỹ thuật <small>· T</small></button>` + side;
+  renderTechWin();
   document.getElementById('selbox').innerHTML = portraitHtml(key) + h;
   document.getElementById('cmdbox').innerHTML = top + `<div class="cards">${cmd}</div>`;
   document.getElementById('side').innerHTML = side;
@@ -1795,22 +2012,34 @@ function renderInfo() {
 
 function showMenu() {
   const o = document.getElementById('overlay');
-  o.innerHTML = `<div class="modal"><h1>Đế chế D3KT</h1>
-    <div class="muted">Chiến thuật theo lượt · bản đồ hex 15×15 · 1 người chơi đấu 1 AI · Đời Đồ Đá → Đời Công Cụ → Đời Đồ Đồng</div>
-    <h2>Khởi đầu</h2>
-    <ul><li>${CFG.start.villagers} dân làng, 🍖${CFG.start.food} 🪵${CFG.start.wood} 🪨${CFG.start.stone} 🪙${CFG.start.gold}, một Nhà chính. Trong vòng 4 ô quanh nhà luôn có ${homeText()}.</li><li>Dân làng là quân cờ: bạn tự đưa họ đi khai thác, xây dựng, dò bản đồ.</li></ul>
-    <h2>Điều kiện thắng</h2>
-    <ul><li>Tiêu diệt Nhà chính đối phương.</li></ul>
-    <h2>Bản đồ ván mới</h2>
-    <div class="civs">${Object.entries(MAP_MODES).map(([k, m]) => `<button class="civ${mapMode === k ? ' on' : ''}" data-act="mapmode:${k}"><b>${m.name}</b><span class="muted">${m.desc}</span></button>`).join('')}</div>
-    ${(() => { // nút tiếp tục khi có ván đã lưu (ván đang chơi dở trên trang này cũng được tự lưu)
-      saveGame(); const s = readSave(); if (!s) return '';
-      const d = new Date(s.at), when = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} ${d.getDate()}/${d.getMonth() + 1}`;
-      return `<p><button class="btn primary" data-act="continue">▶ Tiếp tục ván (Lượt ${s.G.turn} · ${AGES[s.G.players[0].age]} · ${s.G.reveal ? 'bản đồ sáng' : 'bản đồ tối'})</button> <span class="muted">lưu lúc ${when}</span></p>
-        <p class="muted">Bắt đầu ván mới sẽ thay ván đang lưu.</p>`;
-    })()}
-    <p><button class="btn${readSave() ? '' : ' primary'}" data-act="start">Bắt đầu ván mới</button> <button class="btn" data-act="help">Hướng dẫn</button> <button class="btn" data-act="admin">⚙ Quản trị kinh tế</button></p>
-    ${cfgChanged() ? '<p class="muted">⚙ Đang dùng cấu hình kinh tế đã chỉnh (khác mặc định).</p>' : ''}</div>`;
+  saveGame(); const sv = readSave(); // ván đang chơi dở trên trang này cũng được tự lưu
+  const civLine = k => { const c = CIVS[k]; return (c.bonus.length ? c.bonus.map(x => x.txt).join(' · ') : c.desc) + (c.banTxt ? `<br>🚫 ${c.banTxt}` : ''); };
+  // một hàng chọn: nhãn bên trái, các nút gọn bên phải, dưới là mô tả của lựa chọn đang bật
+  const row = (label, act, opts, cur, desc) => `<div class="ngrow"><div class="nglab">${label}</div><div class="ngopt">
+    <div class="seg">${opts.map(([k, t]) => `<button class="${String(cur) === String(k) ? 'on' : ''}" data-act="${act}:${k}">${t}</button>`).join('')}</div>
+    <div class="ngdesc">${desc}</div></div></div>`;
+  const civDrop = (label, who, cur, rndTxt) => `<div class="ngrow"><div class="nglab">${label}</div><div class="ngopt">
+    <select class="ngsel" data-civsel="${who}">${[['random', '🎲 Ngẫu nhiên'], ['none', 'Không đế chế'], ...CIV_PICK.map(k => [k, `${CIVS[k].name} · ${CIVS[k].arch}`])].map(([k, t]) => `<option value="${k}"${cur === k ? ' selected' : ''}>${t}</option>`).join('')}</select>
+    <div class="ngdesc">${cur === 'random' ? rndTxt : civLine(cur)}</div></div></div>`;
+  const dc = CFG[DIFFS[diffSel].key];
+  const cont = sv ? (() => {
+    const d = new Date(sv.at), when = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} ${d.getDate()}/${d.getMonth() + 1}`, p0 = sv.G.players[0];
+    return `<div class="ngcont"><button class="btn primary big" data-act="continue">▶ Tiếp tục ván</button>
+      <span class="muted">Lượt ${sv.G.turn} · ${AGES[p0.age]} · ${civOf(p0).name} · AI ${(DIFFS[sv.G.diff] || DIFFS.normal).name}<br>lưu lúc ${when}</span></div>`;
+  })() : '';
+  o.innerHTML = `<div class="modal menu"><h1>Đế chế D3KT</h1>
+    <div class="muted">Chiến thuật theo lượt, 1 người đấu 1 AI. Hạ Nhà chính đối phương để thắng.</div>
+    ${cont}
+    <h2>Ván mới</h2>
+    ${civDrop('Đế chế của bạn', 'me', civSel, 'Game chọn ngẫu nhiên một đế chế cho bạn khi bắt đầu ván.')}
+    ${civDrop('Đế chế đối thủ', 'ai', aiCivSel, 'Máy chọn ngẫu nhiên một trong các đế chế đã có.')}
+    ${row('Độ khó', 'diff', Object.entries(DIFFS).map(([k, d]) => [k, d.name]), diffSel, `${DIFFS[diffSel].desc} Khai thác ${dc.gather}%${dc.bonus ? `, +${dc.bonus} mỗi tài nguyên` : ''}, đi đánh khi đủ ${dc.march} lính.`)}
+    ${row('Bắt đầu ở', 'startage', [1, 2, 3].map(n => [n, AGES[n].split(' · ')[1]]), startAgeSel, startAgeSel === 1 ? 'Đi từ đầu, như bình thường.' : `Cả hai bên ở ${AGES[startAgeSel]}: lãnh thổ bán kính ${AGE_UP[startAgeSel].rad}${startAgeSel === 3 ? `, Nhà chính +${AGE_UP[3].cityHp} Máu` : ''}.`)}
+    ${row('Bản đồ', 'mapmode', [['dark', '🌑 Tối'], ['light', '☀️ Sáng']], mapMode, MAP_MODES[mapMode].desc)}
+    <div class="muted ngstart">Khởi đầu: ${CFG.start.villagers} dân làng, 🍖${CFG.start.food} 🪵${CFG.start.wood} 🪨${CFG.start.stone} 🪙${CFG.start.gold} và một Nhà chính.${cfgChanged() ? ' ⚙ Đang dùng cấu hình đã chỉnh ở Quản trị.' : ''}</div>
+    <div class="ngfoot"><button class="btn${sv ? '' : ' primary'} big" data-act="start">Bắt đầu ván mới</button>
+      <span class="spacer"></span><button class="btn" data-act="help">Hướng dẫn</button><button class="btn" data-act="admin">⚙ Quản trị</button></div>
+    ${sv ? '<div class="muted ngwarn">Bắt đầu ván mới sẽ thay ván đang lưu.</div>' : ''}</div>`;
   o.classList.add('show');
 }
 function showHelp() {
@@ -1819,11 +2048,15 @@ function showHelp() {
     <h2>Điều khiển</h2><ul>
       <li>Bấm vào đơn vị của bạn để chọn; bấm ô sáng để đi ngay; bấm một ô xa để đơn vị tự đi tiếp qua nhiều lượt.</li>
       <li>Bấm địch, công trình địch hoặc Nhà chính địch có vòng đỏ để tấn công (phải đứng kề; quân tự áp sát nếu trong tầm đi).</li>
-      <li>Bấm một công trình của bạn để xem và dùng lệnh của nó: Nhà chính mua dân và lên đời, nhà huấn luyện mua quân. <b>H</b> chọn nhanh Nhà chính; <b>1 2 3</b> đổi tab Kinh tế / Quân sự / Kỹ thuật.</li>
+      <li>Bấm một công trình của bạn để xem và dùng lệnh của nó: Nhà chính mua dân và lên đời, nhà huấn luyện mua quân. <b>H</b> chọn nhanh Nhà chính; <b>T</b> mở/đóng cửa sổ Kỹ thuật (nút 🔧 trên cùng thanh dọc bên phải).</li>
       <li>Nhiều dân đứng chung một ô: bấm lại vào ô để đổi sang dân kế tiếp.</li>
+      <li><b>Ván mới:</b> ở menu chọn <b>Đời bắt đầu</b> (cả hai bên cùng đời; chỉ đổi đời, lãnh thổ và Máu Nhà chính theo đời, dân và tài nguyên như mục Khởi đầu), <b>Độ khó AI</b> (Dễ · Thường · Khó · Rất khó: AI khai thác nhanh/chậm hơn, có thêm tài nguyên, đi đánh sớm/muộn; Rất khó thấy toàn bộ bản đồ) và <b>Bản đồ</b> sáng/tối. Game nhớ lựa chọn cho lần sau; ván đã lưu giữ độ khó của nó. Các con số chỉnh trong ⚙ Quản trị, tab Ván mới.</li>
       <li><b>Lưu ván:</b> game tự lưu đầu mỗi lượt của bạn và khi bạn đóng hoặc chuyển khỏi trang. Mở lại trang rồi bấm <b>▶ Tiếp tục ván</b>. Bản lưu nằm trong trình duyệt của máy này; mỗi lúc chỉ giữ một ván.</li>
       <li><b>Enter</b>: kết thúc lượt · <b>N</b>: đơn vị rảnh kế tiếp · <b>Esc</b>/chuột phải: bỏ chọn · <b>M</b>: ẩn/hiện bản đồ con.</li>
       <li>Bản đồ con ở góc dưới trái: ngôi sao vàng nhấp nháy là Nhà chính của bạn; Nhà chính địch hiện ngôi sao đỏ khi bạn đã dò ra. Chấm xanh/đỏ là đơn vị, ô vuông là công trình.</li></ul>
+    <h2>Đế chế</h2><ul>
+      <li>Chọn đế chế cho bạn và cho AI ở màn hình Ván mới. Mỗi đế chế có lợi thế riêng, lấy theo AoE1; rê chuột vào huy hiệu đế chế trên thanh trên cùng để xem.</li>
+      ${CIV_PICK.map(k => `<li><b>${CIVS[k].name}</b>: ${CIVS[k].bonus.map(b => b.txt).join('; ')}.</li>`).join('')}</ul>
     <h2>Khai thác</h2><ul>
       <li><b>Đoàn dân:</b> đi một dân vào ô có dân mình là nhập đoàn (tối đa ${MINE_CAP}). Bấm ô là chọn cả đoàn: cả đoàn đi, khai thác và xây cùng nhau; tách bằng nút “Tách” như đạo quân.</li>
       <li>Đưa dân vào ô tài nguyên là dân tự khai thác, tối đa ${MINE_CAP} dân/ô: Rừng ${AMT[FOREST]} Gỗ, Bãi gỗ nhỏ ${AMT[WOODLOT]} Gỗ, Mỏ vàng ${AMT[HILLS]}, Mỏ đá ${AMT[STONE]}, Bụi quả dâu ${AMT[BERRY]}, Đàn hươu ${AMT[DEER]} thịt, Đàn voi ${AMT[ELEPHANT]} thịt. Phần còn lại của bản đồ là Đất trống: đi lại và xây dựng được.</li>
@@ -1835,7 +2068,7 @@ function showHelp() {
       <li>Kho tài nguyên nhận Gỗ/Đá/Vàng và cả thịt hươu, voi; Kho thực phẩm nhận mọi loại Thức ăn (quả, thịt, lúa) — đặt sát mỏ để khai thác nhanh gấp nhiều lần.</li>
       <li>Mỏ cạn sẽ thành Đất trống. Ruộng lúa (Đời 2, cần có Chợ) cho ${FARM_LOAD}/chuyến và cạn sau ${FARM_AMT} (Thuần hóa ở Chợ: +${TECHS.farm.farmAmt}).</li>
       <li>Nâng cấp (Đời 2, Đời 3): Kho tài nguyên tăng Công/Thủ cho quân, Chợ tăng khai thác, Nhà lính / Trường bắn cung / Chuồng ngựa đổi quân lên bản mạnh hơn. Nâng cấp xếp chung hàng chờ với quân và giữ mãi kể cả khi nhà bị phá.</li>
-      <li><b>Cây kỹ thuật</b> (tab 🔧 Kỹ thuật): nhiều nâng cấp Đời 3 chỉ mở khi đã xong nâng cấp trước nó trong cùng nhánh, ví dụ Rèn công cụ → Rèn đồng, Giáp da → Giáp đồng, Rìu đồng → Kiếm đồng, Khai vàng → Đào sâu. Ô xanh: đã xong · vàng: đang nghiên cứu · viền sáng: mua được · xám 🔒: còn khóa (ghi rõ cần gì).</li></ul>
+      <li><b>Cây kỹ thuật</b> (cửa sổ 🔧 Kỹ thuật, phím T, chỉ để xem): nhiều nâng cấp Đời 3 chỉ mở khi đã xong nâng cấp trước nó trong cùng nhánh, ví dụ Rèn công cụ → Rèn đồng, Giáp da → Giáp đồng, Rìu đồng → Kiếm đồng, Khai vàng → Đào sâu. Ô xanh: đã xong · vàng: đang nghiên cứu · viền sáng: mua được · xám 🔒: còn khóa (ghi rõ cần gì).</li></ul>
     <h2>Xây dựng và dân số</h2><ul>
       <li>Chọn một dân → chọn công trình ở bảng lệnh dưới đáy → bấm ô Đất trống viền vàng trong lãnh thổ. Lãnh thổ gồm vùng quanh Nhà chính và ${TERR_BLD} ô quanh mỗi công trình đã xây xong của bạn (kể cả kho dựng ngoài xa), nhưng không lấn vào vùng quanh Nhà chính địch. Dân tự đi tới và xây khi đứng kề công trình. Chọn thêm dân rồi bấm vào công trình dang dở để cùng xây: mỗi dân góp 1 lượt công mỗi lượt.</li>
       <li>Dân số tính chung dân và quân: Nhà chính ${CFG.pop.base} chỗ, mỗi Nhà dân +${CFG.pop.perHouse}, tối đa ${POP_MAX}.</li>
@@ -1893,7 +2126,7 @@ function newBattle(att, def) {
   [att, def].forEach((list, side) => list.slice(0, BROWS).forEach((x, j, arr) => {
     const row = Math.round((j + 0.5) * BROWS / arr.length - 0.5), ranged = UNITS[x.type].brange > 1;
     const col = side === 0 ? (ranged ? 0 : 1) : (ranged ? BCOLS - 1 : BCOLS - 2);
-    pieces.push({ u: x, owner: x.owner, side, type: x.type, cell: row * BCOLS + col, hp: x.hp, max: ust(x).hp, mp: 0, defend: false, moved: false, alive: true });
+    pieces.push({ u: x, owner: x.owner, side, type: x.type, cell: row * BCOLS + col, hp: x.hp, max: maxHp(x), mp: 0, defend: false, moved: false, alive: true });
   }));
   return { pieces, terr, round: 1, order: [], oi: -1, cur: null, reach: new Map(), targets: new Map(), phase: 'ai', auto: false, sim: false, log: [], fl: [], hover: -1, result: null, done: null };
 }
@@ -1927,7 +2160,7 @@ function startBattle(att, def) {
   bOrder();
   return new Promise(res => { B.done = res; bNext(); });
 }
-function armyList(arr, cls) { return arr.map(x => `<span class="${cls}">${UNITS[x.type].ico} ${UNITS[x.type].name} · ${x.hp}/${ust(x).hp}</span>`).join(''); }
+function armyList(arr, cls) { return arr.map(x => `<span class="${cls}">${UNITS[x.type].ico} ${UNITS[x.type].name} · ${x.hp}/${maxHp(x)}</span>`).join(''); }
 function askBattle(grp, t) { // người chơi tấn công một đạo địch
   pending = { kind: 'attack', grp, t };
   const o = document.getElementById('overlay');
@@ -1968,7 +2201,7 @@ function battleChoice(a) { // xử lý nút trên hai hộp thoại trên
   if (a === 'manual') startBattle(grp, def); else { simBattle(grp, def); renderUI(); }
 }
 const bPieceAt = cell => B.pieces.find(p => p.alive && p.cell === cell);
-const bRange = p => UNITS[p.type].brange;
+const bRange = p => UNITS[p.type].brange + civAdd(G.players[p.owner], 'brange', p.type);
 // Đường bắn trong trận: bắn xa (cách hơn 1 ô) bị ô Đá tảng nằm giữa chặn. Lấy mẫu dọc đoạn nối tâm hai ô; địa hình cố định suốt trận nên lưu lại.
 function bLos(a, b) {
   if (BG.dist(a, b) <= 1) return true;
@@ -2017,7 +2250,7 @@ function bTargets(p, rc) { // quân địch -> {d, pos, cost}
   }
   return out;
 }
-function bDmg(a, d, k, rand) { return dmgCore(a, d.type, defOf(d) + BT[B.terr[d.cell]].def + (d.defend ? 2 : 0), k, rand) + (bHillShot(a) ? 1 : 0); }
+function bDmg(a, d, k, rand) { return dmgCore(a, d.type, defVs(a, d) + BT[B.terr[d.cell]].def + (d.defend ? 2 : 0), k, rand) + (bHillShot(a) ? 1 : 0); }
 function bRet(a, d, dist, rand) {
   if (dist === 1) return bDmg(d, a, UNITS[d.type].cls === 'archer' ? 0.4 : 0.6, rand);
   return bRange(d) >= dist && bLos(d.cell, a.cell) ? bDmg(d, a, 0.5, rand) : 0;
@@ -2048,7 +2281,7 @@ function bAtkZone(p, rc) {
   return out;
 }
 function bRangeOf(p) { // tầm của một quân ở lượt kế của nó (MP đầy), dùng khi rê chuột
-  const save = p.mp; p.mp = UNITS[p.type].bmp;
+  const save = p.mp; p.mp = bmpOf(p);
   const mv = bReach(p); p.mp = save;
   return { mv, atk: bAtkZone(p, mv) };
 }
@@ -2063,7 +2296,7 @@ function bAdvance() {
   if (B.oi >= B.order.length) { B.round++; if (B.round > BMAXR) { bFinish(-1); return false; } bOrder(); B.oi = 0; }
   const p = B.order[B.oi];
   if (!p.alive) return bAdvance();
-  B.cur = p; p.defend = false; p.moved = false; p.mp = UNITS[p.type].bmp; B.reach = new Map(); B.targets = new Map();
+  B.cur = p; p.defend = false; p.moved = false; p.mp = bmpOf(p); B.reach = new Map(); B.targets = new Map();
   B.undo = { cell: p.cell, mp: p.mp }; // chỗ đứng đầu lượt: cho phép đi lại khi chưa đánh
   return true;
 }
@@ -2144,7 +2377,7 @@ function bHoverHtml(cell) {
   let h = `${T.name}${isFinite(T.cost) ? ' · ' + T.cost + ' MP' : ' · không thể đi qua, chặn đường bắn'}${T.def ? ' · +' + T.def + ' Thủ' : ''}${T.t === HILLS ? ' · Cung thủ đứng đây +1 sát thương' : ''}`;
   if (d) {
     const s = UNITS[d.type];
-    h += ` — <b>${s.ico} ${bName(d)}</b> Máu ${d.hp}/${d.max} · Công ${withBonus(s.atk, atkBonus(d))} · Thủ ${withBonus(s.def, defBonus(d))}${d.defend ? '+2' : ''} · Tốc độ ${s.init} · Di chuyển ${s.bmp} · Tầm ${bRange(d)}`;
+    h += ` — <b>${s.ico} ${bName(d)}</b> Máu ${d.hp}/${d.max} · Công ${withBonus(s.atk, atkBonus(d))} · Thủ ${withBonus(s.def, defBonus(d))}${d.defend ? '+2' : ''} · Tốc độ ${s.init} · Di chuyển ${bmpOf(d)} · Tầm ${bRange(d)}`;
     if (d !== B.cur && B.phase !== 'done') h += ` · <span class="muted">${d.owner ? 'viền cam: nó đi tới được, đỏ: nó đánh tới được (lượt kế của nó)' : 'nét đứt: tầm của quân này ở lượt kế'}</span>`;
     if (B.phase === 'player' && B.targets.has(d)) {
       const t = B.targets.get(d);
@@ -2623,7 +2856,7 @@ function draw() {
   for (const [i, list] of groups) {
     const u = list.includes(sel) ? sel : list[0], { x, y } = CEN[i], s = ust(u);
     const mine = u.owner === 0, ready = mine && list.some(needsOrders), spent = mine && !isVil(u) && (u.attacked || u.mp <= 0);
-    drawToken(g, x, y - 2, G.players[u.owner].color, 'units/' + u.type, u.hp, s.hp, spent, 12, u.owner !== 0);
+    drawToken(g, x, y - 2, G.players[u.owner].color, 'units/' + u.type, u.hp, maxHp(u), spent, 12, u.owner !== 0);
     if (i === hover && !isVil(u)) bonusTags(g, x, y + 13, u);
     if (ready && !G.busy) { // vòng xanh nhấp nháy: còn chờ lệnh
       const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
@@ -2650,26 +2883,68 @@ function draw() {
 }
 
 // ---------- Quản trị kinh tế ----------
+// Màn Quản trị chia tab. Mọi tab nằm sẵn trong trang (chỉ ẩn/hiện) nên số đang sửa dở ở tab khác không mất khi đổi tab.
+// Ô viền vàng: khác mặc định (rê chuột để xem mặc định). Ô tìm nhanh lọc trên mọi tab.
+const ADMIN_TABS = [
+  ['game', '🎮 Ván mới', 'Khởi đầu ván, Nhà chính, tài nguyên quanh nhà và độ khó AI. Áp dụng từ ván mới.'],
+  ['eco', '💰 Kinh tế', 'Khai thác, trữ lượng mỗi ô, dân số.'],
+  ['age', '⬆️ Lên đời', 'Giá và thời gian lên Đời Công Cụ, Đời Đồ Đồng.'],
+  ['units', '⚔ Quân', 'Giá và chỉ số đơn vị, chia theo đời.'],
+  ['bld', '🏠 Công trình', 'Giá, thời gian xây, Máu công trình, chia theo đời.'],
+  ['techs', '🔧 Nâng cấp', 'Giá và thời gian nghiên cứu, chia theo nhà.'],
+  ['backup', '💾 Sao lưu', 'Xuất/nhập cấu hình dạng JSON, khôi phục mặc định.'],
+];
+const ADMIN_GROUPS = { game: ['start', 'city', 'home', 'aiEasy', 'aiNormal', 'aiHard', 'aiVhard'], eco: ['gather', 'amounts', 'pop'], age: ['age', 'age3'] };
+let adminTab = 'game';
 function showAdmin(note) {
-  const inp = (path, min) => `<input type="number" min="${min}" max="99999" step="1" data-cfg="${path.join('.')}" value="${cfgGet(CFG, path)}"${cfgGet(CFG, path) !== cfgGet(DEFAULT_CFG, path) ? ' class="chg"' : ''}>`;
-  let h = `<div class="modal admin"><h1>⚙ Quản trị kinh tế</h1>
-    <div class="muted">Dành cho người quản lý trò chơi. Giá, thời gian và chỉ số áp dụng ngay sau khi lưu; tài nguyên khởi đầu, số dân đầu ván, trữ lượng mỏ, Máu Nhà chính và tài nguyên quanh Nhà chính áp dụng từ <b>ván mới</b>. Nếu đặt quá nhiều mỏ quanh nhà so với chỗ trống, game sẽ đặt nhiều nhất có thể. Cấu hình được lưu trên trình duyệt này. Ô viền vàng là giá trị khác mặc định.</div>
-    ${note ? `<div class="place" style="margin-top:8px">${note}</div>` : ''}`;
-  h += '<div class="cfggrid">';
-  for (const [g, title, fields] of CFG_GROUPS)
-    h += `<div class="card"><h3>${title}</h3>${fields.map(([f, label, min, max]) => `<label class="cfgrow"><span>${label}${max != null ? ` <small class="muted">(${min}–${max})</small>` : ''}</span>${inp([g, f], min)}</label>`).join('')}</div>`;
-  h += '</div>';
-  const table = (title, key, defs, fields) => `<h2>${title}</h2><div class="cfgscroll"><table class="cfg"><tr><th></th>${fields.map(f => `<th>${f[1]}</th>`).join('')}</tr>${
-    Object.keys(DEFAULT_CFG[key]).map(id => `<tr><td>${defs[id].ico} ${defs[id].name}</td>${fields.map(([f, , min]) => `<td>${inp([key, id, f], min)}</td>`).join('')}</tr>`).join('')}</table></div>`;
-  h += table('Giá và chỉ số đơn vị', 'units', UNITS, UNIT_FIELDS) + table('Giá công trình', 'buildings', BUILDINGS, BLD_FIELDS) + table('Giá nâng cấp', 'techs', TECHS, TECH_FIELDS);
-  h += `<p style="margin-top:14px"><button class="btn primary" data-act="cfg:save">Lưu cấu hình</button>
-    <button class="btn" data-act="cfg:reset">Khôi phục mặc định</button>
-    <button class="btn" data-act="cfg:export">Xuất JSON</button>
-    <button class="btn" data-act="cfg:import">Nhập JSON</button>
-    <button class="btn" data-act="cfg:close">Đóng</button></p>
-    <textarea id="cfgjson" rows="4" spellcheck="false" placeholder="Bấm “Xuất JSON” để lấy cấu hình hiện tại ở đây, hoặc dán JSON vào rồi bấm “Nhập JSON”."></textarea></div>`;
+  const inp = (path, min) => { const v = cfgGet(CFG, path), d = cfgGet(DEFAULT_CFG, path); return `<input type="number" min="${min}" max="99999" step="1" data-cfg="${path.join('.')}" data-def="${d}" value="${v}" title="Mặc định: ${d}"${v !== d ? ' class="chg"' : ''}>`; };
+  const cards = keys => '<div class="cfggrid">' + keys.map(g => CFG_GROUPS.find(x => x[0] === g)).map(([g, title, fields]) =>
+    `<div class="card"><h3>${title}</h3>${fields.map(([f, label, min, max]) => `<label class="cfgrow" data-q="${attrEsc((title + ' ' + label).toLowerCase())}"><span>${label}${max != null ? ` <small class="muted">(${min}–${max})</small>` : ''}</span>${inp([g, f], min)}</label>`).join('')}</div>`).join('') + '</div>';
+  const table = (key, defs, fields, sections) => sections.filter(([, ids]) => ids.length).map(([title, ids]) => `<h3 class="admsec">${title}</h3><div class="cfgscroll"><table class="cfg"><tr><th></th>${fields.map(f => `<th>${f[1]}</th>`).join('')}</tr>${
+    ids.map(id => `<tr data-q="${attrEsc((defs[id].name + ' ' + title.replace(/<[^>]*>/g, '')).toLowerCase())}"><td>${defs[id].ico} ${defs[id].name}${key === 'techs' ? ` <small class="muted">· Đời ${defs[id].age}</small>` : ''}</td>${fields.map(([f, , min]) => `<td>${inp([key, id, f], min)}</td>`).join('')}</tr>`).join('')}</table></div>`).join('');
+  const byAge = (key, defs) => [1, 2, 3].map(n => [AGES[n], Object.keys(DEFAULT_CFG[key]).filter(id => Math.min(3, Math.max(1, defs[id].age || 1)) === n)]);
+  const techSecs = [...new Set(Object.values(TECHS).map(t => t.at))].map(at => [`${BUILDINGS[at].ico} ${BUILDINGS[at].name}`, Object.keys(DEFAULT_CFG.techs).filter(id => TECHS[id].at === at).sort((x, y) => TECHS[x].age - TECHS[y].age)]);
+  const body = {
+    game: cards(ADMIN_GROUPS.game), eco: cards(ADMIN_GROUPS.eco), age: cards(ADMIN_GROUPS.age),
+    units: table('units', UNITS, UNIT_FIELDS, byAge('units', UNITS)),
+    bld: table('buildings', BUILDINGS, BLD_FIELDS, byAge('buildings', BUILDINGS)),
+    techs: table('techs', TECHS, TECH_FIELDS, techSecs),
+    backup: `<div class="card" style="margin-top:10px"><h3>Xuất / nhập JSON</h3><div class="muted">Bấm “Xuất JSON” để lấy cấu hình hiện tại (gồm cả số đang sửa chưa lưu), hoặc dán JSON vào rồi bấm “Nhập JSON”.</div>
+      <textarea id="cfgjson" rows="8" spellcheck="false"></textarea>
+      <p><button class="btn" data-act="cfg:export">Xuất JSON</button> <button class="btn" data-act="cfg:import">Nhập JSON</button></p></div>
+      <div class="card"><h3>Khôi phục mặc định</h3><div class="muted">Đưa toàn bộ cấu hình (mọi tab) về giá trị gốc và lưu luôn.</div><p><button class="btn" data-act="cfg:reset">↩ Khôi phục toàn bộ mặc định</button></p></div>`,
+  };
+  const h = `<div class="modal admin"><div class="admtop"><h1>⚙ Quản trị</h1><input id="admq" type="search" placeholder="🔍 Tìm nhanh (vd: kiếm, vàng, voi…)" autocomplete="off"></div>
+    <div class="muted">Giá, thời gian và chỉ số áp dụng ngay sau khi lưu; các mục ở tab Ván mới áp dụng từ <b>ván mới</b>. Cấu hình lưu trên trình duyệt này. Ô viền vàng: khác mặc định (rê chuột để xem mặc định).</div>
+    ${note ? `<div class="place" style="margin-top:8px">${note}</div>` : ''}
+    <div class="admtabs">${ADMIN_TABS.map(([k, t]) => `<button class="tab${k === adminTab ? ' on' : ''}" data-act="cfg:tab-${k}" data-tab="${k}">${t}<i class="admn"></i></button>`).join('')}</div>
+    <div class="admbody">${ADMIN_TABS.map(([k, , d]) => `<section class="admpane${k === adminTab ? ' on' : ''}" data-pane="${k}"><div class="muted admdesc">${d}</div>${body[k]}</section>`).join('')}<div class="admnone muted">Không có mục nào khớp.</div></div>
+    <div class="admfoot"><span class="muted" id="admchg"></span><button class="btn" data-act="cfg:close">Đóng</button><button class="btn primary" data-act="cfg:save">💾 Lưu cấu hình</button></div></div>`;
   const o = document.getElementById('overlay');
   o.innerHTML = h; o.classList.add('show');
+  const m = o.querySelector('.modal.admin');
+  m.addEventListener('input', e => {
+    if (e.target.id === 'admq') { adminFilter(); return; }
+    if (e.target.dataset.cfg) { e.target.classList.toggle('chg', e.target.value !== e.target.dataset.def); adminCount(); }
+  });
+  adminCount();
+}
+function adminCount() { // số ô khác mặc định trên mỗi tab
+  let all = 0;
+  for (const pane of document.querySelectorAll('.admpane')) {
+    const n = pane.querySelectorAll('input.chg').length; all += n;
+    const t = document.querySelector(`.admtabs [data-tab="${pane.dataset.pane}"] .admn`); if (t) t.textContent = n || '';
+  }
+  const c = document.getElementById('admchg'); if (c) c.textContent = all ? `${all} ô khác mặc định` : 'Đang dùng toàn bộ mặc định';
+}
+function adminFilter() { // gõ tìm: hiện mọi tab, chỉ giữ dòng khớp
+  const q = document.getElementById('admq').value.trim().toLowerCase(), m = document.querySelector('.modal.admin');
+  m.classList.toggle('searching', !!q);
+  let hits = 0;
+  for (const r of m.querySelectorAll('[data-q]')) { const ok = !q || r.dataset.q.includes(q); r.classList.toggle('nohit', !ok); if (ok && q) hits++; }
+  for (const el of m.querySelectorAll('.cfggrid .card, .cfgscroll')) el.classList.toggle('nohit', !!q && !el.querySelector('[data-q]:not(.nohit)'));
+  for (const el of m.querySelectorAll('h3.admsec')) el.classList.toggle('nohit', !!q && el.nextElementSibling.classList.contains('nohit'));
+  m.classList.toggle('nohits', !!q && !hits);
 }
 function readAdminForm() { // đọc các ô đang nhập thành một cấu hình hợp lệ
   const raw = JSON.parse(JSON.stringify(CFG));
@@ -2686,6 +2961,12 @@ function saveCfg(cfg) {
   return true;
 }
 function adminAct(a) {
+  if (a.startsWith('tab-')) { // đổi tab: chỉ ẩn/hiện, không vẽ lại để giữ số đang sửa
+    adminTab = a.slice(4);
+    for (const el of document.querySelectorAll('.admtabs .tab')) el.classList.toggle('on', el.dataset.tab === adminTab);
+    for (const el of document.querySelectorAll('.admpane')) el.classList.toggle('on', el.dataset.pane === adminTab);
+    return;
+  }
   if (a === 'close') { if (G && !G.over) { document.getElementById('overlay').classList.remove('show'); renderUI(); } else showMenu(); return; }
   if (a === 'save') { const ok = saveCfg(readAdminForm()); showAdmin(ok ? '✅ Đã lưu. Giá mới áp dụng ngay; các mục khởi đầu áp dụng từ ván mới.' : '⚠ Đã áp dụng cho phiên này nhưng không lưu được vào trình duyệt.'); return; }
   if (a === 'reset') { saveCfg(JSON.parse(JSON.stringify(DEFAULT_CFG))); showAdmin('↩ Đã khôi phục toàn bộ về mặc định.'); return; }
