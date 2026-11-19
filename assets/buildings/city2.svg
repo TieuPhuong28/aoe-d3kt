@@ -1,2 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><g stroke="#1d1a16" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="8" y="30" width="48" height="28" fill="#d8b27a"/><path d="M4 33L32 12l28 21z" fill="#b5532f"/><rect x="26" y="40" width="12" height="18" fill="#5a3a1e"/>
-    <path d="M32 12V2" stroke-width="3"/><path d="M32 3h12l-4 4 4 4H32z" fill="#e8c85a"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><g stroke="#2a1f14" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+<ellipse cx="33" cy="57" rx="30" ry="6" fill="#000" opacity=".28" stroke="none"/>
+<path d="M5 30h30v26c-10 1.5-22 1.5-30 0z" fill="#d9b07a"/>
+<path d="M27 30h8v26l-8 .9z" fill="#b98c55" stroke="none"/>
+<path d="M5 30h30v26c-10 1.5-22 1.5-30 0z" fill="none"/>
+<path d="M3 27h34v4H3z" fill="#9b6b3b"/>
+<path d="M31 20h28v37c-8 1.5-20 1.6-28 .5z" fill="#e3bd86"/>
+<path d="M49 20h10v37l-10 .9z" fill="#bf925a" stroke="none"/>
+<path d="M31 20h28v37c-8 1.5-20 1.6-28 .5z" fill="none"/>
+<path d="M29 17h32v4H29z" fill="#9b6b3b"/>
+<path d="M33 17V8h24v9" fill="#e3bd86"/><path d="M50 8h7v9h-7z" fill="#bf925a" stroke="none"/><path d="M33 17V8h24v9" fill="none"/>
+<path d="M31 6h28v3H31zM31 6V3h4v3M41 6V3h4v3M51 6V3h4v3" fill="#9b6b3b"/>
+<path d="M39 58V46a6 6 0 0 1 12 0v12" fill="#3a2412"/>
+<path d="M36 28h5v6h-5zM49 28h5v6h-5zM42 11h6v4h-6z" fill="#3a2412"/>
+<path d="M10 37h5v5h-5zM22 37h5v5h-5z" fill="#3a2412"/>
+<path d="M8 47h20l2 4H6z" fill="#a74a2e"/><path d="M10 51v6M26 51v6" stroke="#6e4422"/>
+<path d="M14 34h6M10 45h3M22 52h4M54 40h3M33 50h3" stroke="#b98c55" stroke-width="1.1"/>
+</g></svg>

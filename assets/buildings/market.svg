@@ -1,1 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><g stroke="#1d1a16" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="12" y="30" width="40" height="24" fill="#c99a5b"/><path d="M8 30l6-14h36l6 14z" fill="#d0453a"/><path d="M22 16l-3 14M32 16v14M42 16l3 14" fill="none"/><rect x="26" y="40" width="12" height="14" fill="#6b4a2b"/><circle cx="18" cy="42" r="3" fill="#e8c34a"/><circle cx="46" cy="42" r="3" fill="#7bbf4a"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><g stroke="#2a1f14" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+<ellipse cx="34" cy="56" rx="26" ry="6" fill="#000" opacity=".28" stroke="none"/>
+<path d="M10 24v32M54 24v32" stroke="#5a3a1c" stroke-width="4"/><path d="M10 24v32M54 24v32" stroke="#9a6435" stroke-width="2"/>
+<path d="M8 40h48v8H8z" fill="#9a6435"/><path d="M8 48h48v6H8z" fill="#7d4f28"/>
+<path d="M14 40c0-5 2-7 5-7s5 2 5 7z" fill="#c4683a"/><path d="M16 35h6" stroke="#8a3f1e" stroke-width="1"/>
+<path d="M27 40c0-3 3-5 6-5s6 2 6 5z" fill="#e8c55a"/><circle cx="31" cy="37" r="1.2" fill="#c9302c" stroke="none"/><circle cx="35" cy="38" r="1.2" fill="#c9302c" stroke="none"/>
+<path d="M42 40l1-6h9l1 6z" fill="#b07a3f"/><path d="M43 34c1-2 3-3 4.5-3s3.5 1 4.5 3" fill="#7bb04a"/>
+<path d="M4 26L10 8h44l6 18z" fill="#efe1c0"/>
+<path d="M10 8L4 26h8.6L17 8zM24 8l-2.6 18H30L31 8zM38 8l.6 18h8.6L45 8zM52 8l3 18H60z" fill="#c23f30" stroke="none"/>
+<path d="M4 26L10 8h44l6 18z" fill="none"/>
+<path d="M4 26q4.3 5 8.6 0" fill="#c23f30" stroke-width="1.4"/><path d="M12.6 26q4.3 5 8.6 0" fill="#efe1c0" stroke-width="1.4"/>
+<path d="M21.2 26q4.3 5 8.6 0" fill="#c23f30" stroke-width="1.4"/><path d="M29.8 26q4.3 5 8.6 0" fill="#efe1c0" stroke-width="1.4"/>
+<path d="M38.4 26q4.3 5 8.6 0" fill="#c23f30" stroke-width="1.4"/><path d="M47 26q4.3 5 8.6 0" fill="#efe1c0" stroke-width="1.4"/><path d="M55.6 26q2.2 4 4.4 0" fill="#c23f30" stroke-width="1.4"/>
+<path d="M18 58c-4 0-6-1.5-6-4l1-3h10l1 3c0 2.5-2 4-6 4z" fill="#c4683a"/>
+<path d="M44 59c-5 0-7-1-7-3v-3h14v3c0 2-2 3-7 3z" fill="#b07a3f"/><path d="M38 53c1.5-2 3.5-3 6-3s4.5 1 6 3" fill="#e2bd66"/>
+</g></svg>

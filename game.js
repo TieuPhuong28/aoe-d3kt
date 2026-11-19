@@ -76,10 +76,26 @@ function loadIcons() {
   for (const key of Object.keys(ICON_EMOJI)) {
     const exts = ['png', 'svg'], im = new Image();
     const next = () => { const e = exts.shift(); if (e) im.src = `assets/${key}.${e}`; };
-    im.onload = () => { IMG[key] = im; clearTimeout(redraw); redraw = setTimeout(() => { if (G) renderUI(); }, 50); };
+    im.onload = () => {
+      IMG[key] = im; clearTimeout(redraw); redraw = setTimeout(() => { if (G) renderUI(); }, 50);
+      if (key.startsWith('units/') && /\.svg$/.test(im.src)) fetch(im.src).then(r => r.text()).then(t => { SVG_SRC[key] = t; }).catch(() => {}); // để đổi màu áo theo phe
+    };
     im.onerror = next;
     next();
   }
+}
+// Ảnh đơn vị SVG tô áo bằng TEAM_KEY (màu phe Bạn); phe khác: thay chuỗi màu trong mã SVG rồi nạp thành ảnh riêng.
+// Nếu không đọc được mã SVG (mở bằng file://) hoặc ảnh là PNG thì dùng ảnh gốc; vòng màu dưới chân vẫn cho biết phe.
+const TEAM_KEY = ['#2f6fde', '#1f4fa8'], SVG_SRC = {}, TEAM_IMG = {};
+const darken = (hex, k) => '#' + [1, 3, 5].map(j => Math.round(parseInt(hex.slice(j, j + 2), 16) * k).toString(16).padStart(2, '0')).join('');
+function teamImg(key, color) {
+  if (color.toLowerCase() === TEAM_KEY[0] || !SVG_SRC[key]) return IMG[key];
+  const k = key + color;
+  if (!TEAM_IMG[k]) {
+    TEAM_IMG[k] = new Image();
+    TEAM_IMG[k].src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(SVG_SRC[key].split(TEAM_KEY[0]).join(color).split(TEAM_KEY[1]).join(darken(color, 0.68)));
+  }
+  return TEAM_IMG[k].complete && TEAM_IMG[k].naturalWidth ? TEAM_IMG[k] : IMG[key];
 }
 // HTML: thẻ <img> nếu có ảnh, không thì emoji
 const ico = key => (IMG[key] ? `<img class="ic" src="${IMG[key].src}" alt="">` : ICON_EMOJI[key] || '');
@@ -354,6 +370,9 @@ const cityAt = i => G.players.find(p => p.city.i === i);
 const isVil = u => u.type === 'vil';
 const ARMY_MAX = 5; // số lính tối đa trong một đạo (cùng đứng một ô)
 const armyAt = (i, owner) => G.units.filter(u => u.i === i && !isVil(u) && (owner == null || u.owner === owner));
+// Đoàn dân: các dân cùng phe đứng chung một ô (tối đa bằng số dân mỗi ô mỏ), đi và làm việc cùng nhau như một đạo
+const vilsAt = (i, owner) => G.units.filter(u => u.i === i && isVil(u) && (owner == null || u.owner === owner));
+const groupAt = u => (isVil(u) ? vilsAt : armyAt)(u.i, u.owner);
 const TRAINS = { barracks: ['club', 'axe', 'spear'], range: ['archer'], stable: ['cav'] };
 const ust = u => UNITS[u.type];
 // ---------- Nâng cấp: hiệu ứng ----------
@@ -606,8 +625,8 @@ function canPass(u, n) {
 function canStop(u, n, size = 1) {
   if (!canPass(u, n) || blockedBld(u, n)) return false;
   const occ = unitsAt(n).filter(o => o !== u);
+  if (isVil(u)) return occ.every(isVil) && occ.length + size <= (G.bld[n] ? 1 : MINE_CAP); // đoàn dân tối đa MINE_CAP (Ruộng lúa: 1 dân)
   if (!occ.length) return true;
-  if (isVil(u)) return occ.every(isVil) && isMine(n) && occ.length < MINE_CAP; // tối đa 3 dân chung một ô mỏ
   return occ.every(o => !isVil(o)) && occ.length + size <= ARMY_MAX; // lính nhập đạo, tối đa 5
 }
 function reach(u, humanFog, grp = [u]) { // grp: cả đạo cùng đi, theo quân chậm nhất
@@ -759,7 +778,7 @@ function autoMoves(pid) { // cuối lượt: thợ xây đi tới công trườn
       continue;
     }
     if (u.goto == null || done.has(u)) continue;
-    const grp = isVil(u) ? [u] : armyAt(u.i, pid).filter(m => m.goto === u.goto); // cả đạo đi cùng nhau
+    const grp = groupAt(u).filter(m => m.goto === u.goto && m.build == null); // cả đạo / đoàn dân đi cùng nhau
     for (const m of grp) done.add(m);
     const moved = u.i !== u.goto && walk(u, u.goto, grp);
     for (const m of grp) {
@@ -1139,28 +1158,27 @@ async function endTurn() {
 const canSplit = m => m.mp > 0 && !m.attacked;
 const selGroup = () => {
   if (!sel) return [];
-  if (isVil(sel)) return [sel];
-  const st = armyAt(sel.i, sel.owner);
+  const st = groupAt(sel);
   return selPick ? st.filter(m => selPick.includes(m.id)) : st;
 };
 function select(u, pick = null) { // pick: id các lính được tách khỏi đạo (null = cả đạo)
   sel = u; selReach = new Map(); selTargets = new Map(); selAtk = new Set(); selPick = null;
   if (u) selB = null;
-  if (u && !isVil(u) && pick) {
-    const st = armyAt(u.i, u.owner), ids = pick.filter(id => st.some(m => m.id === id && canSplit(m)));
+  if (u && pick) {
+    const st = groupAt(u), ids = pick.filter(id => st.some(m => m.id === id && canSplit(m)));
     if (ids.length && ids.length < st.length) { selPick = ids; sel = st.find(m => m.id === ids[0]); }
   }
   if (sel) { const grp = selGroup(); selReach = reach(sel, true, grp); selTargets = attackTargets(grp, selReach); selAtk = atkZone(sel, grp, selReach); }
 }
 function togglePick(id) { // bấm "Tách" trên một lính: thêm/bớt lính đó khỏi nhóm tách
-  if (!sel || isVil(sel)) return;
-  const st = armyAt(sel.i, 0), cur = selPick ? [...selPick] : [], k = cur.indexOf(id);
+  if (!sel) return;
+  const st = groupAt(sel), cur = selPick ? [...selPick] : [], k = cur.indexOf(id);
   if (k >= 0) cur.splice(k, 1); else cur.push(id);
   select(st.find(m => m.id === cur[0]) || sel, cur);
 }
 function splitHalf() { // tách đôi: đưa nửa số lính còn MP ra thành đạo mới
-  if (!sel || isVil(sel)) return;
-  const st = armyAt(sel.i, 0), free = st.filter(canSplit);
+  if (!sel) return;
+  const st = groupAt(sel), free = st.filter(canSplit);
   const ids = free.slice(free.length - Math.min(free.length, Math.floor(st.length / 2))).map(m => m.id);
   if (ids.length) select(st.find(m => m.id === ids[0]), ids);
 }
@@ -1179,7 +1197,9 @@ function onTileClick(i) {
     const pl = placing, u = G.units.find(x => x.id === pl.uid); placing = null;
     if (startBuild(me, u, pl.id, i)) {
       log(`Khởi công ${BUILDINGS[pl.id].name}.`, 'info');
-      if (D(u.i, i) > 1) walk(u, i);
+      const crew = (pl.crew || [pl.uid]).map(id => G.units.find(x => x.id === id)).filter(m => m && G.units.includes(m));
+      for (const m of crew) { m.build = i; m.goto = null; }
+      if (D(u.i, i) > 1) walk(u, i, crew.filter(m => m.i === u.i));
       select(null);
     }
     renderUI(); return;
@@ -1204,8 +1224,7 @@ function onTileClick(i) {
   }
   const own = unitsAt(i).filter(o => o.owner === 0);
   if (own.length) {
-    if (isVil(own[0])) select(own[(own.indexOf(sel) + 1) % own.length]); // bấm lại để đổi dân trong cùng ô
-    else select(own.includes(sel) ? sel : own[0]); // bấm ô là chọn cả đạo (hủy nhóm tách nếu có)
+    select(own.includes(sel) ? sel : own[0]); // bấm ô là chọn cả đạo / đoàn dân (hủy nhóm tách nếu có)
     renderUI(); return;
   }
   const ob = G.bld[i], oc = cityAt(i);
@@ -1214,8 +1233,9 @@ function onTileClick(i) {
   }
   if (sel) {
     const u = sel, b = G.bld[i], grp = selGroup();
-    if (isVil(u) && b && b.owner === 0 && !b.done) { // giao việc xây tiếp công trình dang dở
-      u.build = i; u.goto = null; if (D(u.i, i) > 1) walk(u, i);
+    if (isVil(u) && b && b.owner === 0 && !b.done) { // giao việc xây tiếp công trình dang dở (cả đoàn)
+      for (const m of grp) { m.build = i; m.goto = null; }
+      if (D(u.i, i) > 1) walk(u, i, grp);
       select(null); renderUI(); return;
     }
     if (known(me, i) && isFinite(TERRAIN[G.t[i]].cost) && !cityAt(i) && !blockedBld(u, i)) { // lệnh đi xa, tự đi tiếp các lượt sau
@@ -1228,9 +1248,9 @@ function onTileClick(i) {
   select(null); selB = null; renderUI();
 }
 function nextUnit() { // mỗi đạo chỉ tính một lần
-  const list = myUnits(0).filter(needsOrders).filter(u => isVil(u) || armyAt(u.i, 0).find(needsOrders) === u);
+  const list = myUnits(0).filter(needsOrders).filter(u => groupAt(u).find(needsOrders) === u);
   if (!list.length) return;
-  const cur = sel && !isVil(sel) ? armyAt(sel.i, 0).find(needsOrders) : sel;
+  const cur = sel ? groupAt(sel).find(needsOrders) : sel;
   select(list[(list.indexOf(cur) + 1) % list.length]); renderUI();
 }
 
@@ -1303,7 +1323,7 @@ document.addEventListener('click', e => {
   else if (act === 'canceltrain') cancelTrain(me, where);
   else if (act === 'research') research(me, where, c);
   else if (act === 'techgo') { const b = bldOf(me).find(x => x.id === a && x.done); if (b) selectBld(b.tile); }
-  else if (act === 'bld') { if (sel && isVil(sel)) placing = { id: a, uid: sel.id }; }
+  else if (act === 'bld') { if (sel && isVil(sel)) placing = { id: a, uid: sel.id, crew: selGroup().map(m => m.id) }; }
   else if (act === 'unplace') placing = null;
   else if (act === 'stop' && sel) { for (const m of selGroup()) { m.goto = null; m.build = null; } }
   renderUI();
@@ -1440,8 +1460,18 @@ function renderUI() {
   const hint = '<div class="muted">Ô sáng: đi ngay · Ô xa: tự đi nhiều lượt · Chuột phải/Esc: bỏ chọn</div>';
   let h = '';
   if (sel && isVil(sel)) {
-    const s = ust(sel), freeN = freeSites(me).length;
-    h += `<div class="card ctx"><h3>${s.ico} ${s.name}</h3>
+    const s = ust(sel), freeN = freeSites(me).length, grp = selGroup(), crew = vilsAt(sel.i, 0), picking = !!selPick;
+    if (crew.length > 1) { // đoàn dân: liệt kê từng người, tách được như đạo quân
+      h += `<div class="card ctx"><h3>${s.ico} Đoàn dân · ${crew.length}/${MINE_CAP}${picking ? ` <small class="muted">· đang tách ${grp.length} dân</small>` : ''}</h3>
+        <div class="muted">${picking ? 'Nhóm tách' : 'Cả đoàn'} còn ${Math.min(...grp.map(m => m.mp))} MP · ${unitStatus(me, sel)}</div>
+        ${crew.map(m => {
+          const on = picking && selPick.includes(m.id), why = m.attacked ? 'đã đánh' : m.mp <= 0 ? 'hết MP' : '';
+          return `<div class="row mem${on ? ' on' : ''}"><span>${s.ico} Dân làng · ❤${m.hp}/${s.hp} · ${m.mp} MP</span>${why ? `<span class="muted">${why}</span>` : `<button class="btn sm${on ? ' primary' : ''}" data-act="pick:${m.id}">${on ? '☑' : '☐'} Tách</button>`}</div>`;
+        }).join('')}
+        <div class="row" style="gap:6px;justify-content:flex-start">${picking ? '<button class="btn sm" data-act="unpick">✖ Hủy tách</button>' : `<button class="btn sm" data-act="splithalf" ${crew.filter(canSplit).length ? '' : 'disabled'}>✂ Tách đôi</button>`}</div>
+        <div class="muted">${picking ? `Bấm ô sáng để đưa ${grp.length} dân đã chọn ra thành đoàn mới; phần còn lại đứng yên.` : `Cả đoàn đi, khai thác và xây cùng nhau. Đi vào ô có dân mình để nhập đoàn (tối đa ${MINE_CAP}; Ruộng lúa chỉ 1 dân).`}</div>${hint}
+        ${grp.some(m => m.goto != null || m.build != null) ? '<button class="opt" data-act="stop">✋ Dừng việc đang làm</button>' : ''}`;
+    } else h += `<div class="card ctx"><h3>${s.ico} ${s.name}</h3>
       <div class="row"><span>Máu ${sel.hp}/${s.hp}</span><span>Di chuyển ${sel.mp}/${s.mp}</span></div>
       <div class="muted">${unitStatus(me, sel)} — ${s.desc}</div>${hint}
       ${sel.goto != null || sel.build != null ? '<button class="opt" data-act="stop">✋ Dừng việc đang làm</button>' : ''}`;
@@ -1565,6 +1595,7 @@ function showHelp() {
       <li><b>Enter</b>: kết thúc lượt · <b>N</b>: đơn vị rảnh kế tiếp · <b>Esc</b>/chuột phải: bỏ chọn · <b>M</b>: ẩn/hiện bản đồ con.</li>
       <li>Bản đồ con ở góc dưới trái: ngôi sao vàng nhấp nháy là Nhà chính của bạn; Nhà chính địch hiện ngôi sao đỏ khi bạn đã dò ra. Chấm xanh/đỏ là đơn vị, ô vuông là công trình.</li></ul>
     <h2>Khai thác</h2><ul>
+      <li><b>Đoàn dân:</b> đi một dân vào ô có dân mình là nhập đoàn (tối đa ${MINE_CAP}). Bấm ô là chọn cả đoàn: cả đoàn đi, khai thác và xây cùng nhau; tách bằng nút “Tách” như đạo quân.</li>
       <li>Đưa dân vào ô tài nguyên là dân tự khai thác, tối đa ${MINE_CAP} dân/ô: Rừng ${AMT[FOREST]} Gỗ, Bãi gỗ nhỏ ${AMT[WOODLOT]} Gỗ, Mỏ vàng ${AMT[HILLS]}, Mỏ đá ${AMT[STONE]}, Bụi quả dâu ${AMT[BERRY]}, Đàn hươu ${AMT[DEER]} thịt, Đàn voi ${AMT[ELEPHANT]} thịt. Phần còn lại của bản đồ là Đất trống: đi lại và xây dựng được.</li>
       <li><b>Lùa hươu:</b> hươu có 1 MP mỗi vòng. Dân hoặc đạo quân dừng sát bên đàn hươu thì hươu hoảng; khi sang lượt mới hươu chạy 1 ô ngược hướng (nếu ô đó trống, không thì lệch sang ô chéo bên cạnh). Mỗi lượt lùa được 1 ô. Đứng phía bên kia để lùa hươu về sát Nhà chính hoặc Kho, mỗi chuyến sẽ ngắn hơn. Dân hoặc quân vào hẳn ô hươu là hạ được hươu ngay (ô hiện xác hươu) và dân xẻ thịt được luôn. Xác hươu, xác voi thối rữa mất ${CARCASS_ROT} thịt mỗi lượt (ngoài phần dân xẻ), nên hạ xong nên cho dân xẻ ngay.</li>
       <li><b>Voi dữ:</b> voi có 1 MP mỗi vòng và chỉ hành động sau khi lượt chơi kết thúc (sau lượt của cả bạn và địch). Mỗi vòng voi chỉ làm <b>một</b> việc: dân làng đứng sát bên thì húc (-${ELEPHANT_DMG} Máu); dân cách 2 ô (thẳng hay chéo) thì tiến 1 ô lại sát, vòng sau mới húc — bạn có một lượt để rút dân ra xa hoặc cho vào hẳn ô voi để săn. Voi không đuổi quân lính. Voi bám theo dân bao xa cũng được, kể cả vào tận làng, nên đừng dắt voi về nhà. Lúc đầu ván voi luôn cách Nhà chính ít nhất 4 ô.</li>
@@ -1914,12 +1945,10 @@ function renderBattleUI() {
 function drawBattle() {
   const g = bctx; if (!g || B.sim) return;
   g.setTransform(2, 0, 0, 2, 0, 0);
-  g.fillStyle = '#0b0c10'; g.fillRect(0, 0, BWd, BHt);
+  g.clearRect(0, 0, BWd, BHt);
   for (let i = 0; i < BG.n; i++) {
     const { x, y } = BG.cen[i], t = BT[B.terr[i]].t;
-    hexPath(g, x, y, BS - 0.5); g.fillStyle = TERRAIN[t].color; g.fill();
-    g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1; g.stroke();
-    drawDeco(g, t, x, y);
+    drawTile(g, t, x, y, BS, i, true);
   }
   // xem trước tầm của quân dưới chuột (ở lượt kế của nó); địch: cam/đỏ, quân ta: nét đứt trắng/đỏ
   const hp = B.hover >= 0 && B.phase !== 'done' ? bPieceAt(B.hover) : null, all = () => true;
@@ -1944,7 +1973,7 @@ function drawBattle() {
   for (const p of B.pieces) {
     if (!p.alive) continue;
     const { x, y } = BG.cen[p.cell];
-    drawToken(g, x, y - 2, G.players[p.owner].color, 'units/' + p.type, p.hp, p.max, acted.has(p), p === cur ? 16 : 14);
+    drawToken(g, x, y - 2, G.players[p.owner].color, 'units/' + p.type, p.hp, p.max, acted.has(p), p === cur ? 16 : 14, p.side === 1);
     if (p.defend) { g.font = '13px "Segoe UI Emoji", sans-serif'; g.fillText('🛡️', x + 14, y - 15); }
   }
   if (cur) { // mũi tên nhún trên đầu quân đang tới lượt
@@ -2021,74 +2050,278 @@ function drawRange(g, mv, atk, mode, cen = CEN, size = S, show = i => known(G.pl
   }
   g.restore();
 }
-function drawDeco(g, t, x, y, i) {
+// ---------- Họa tiết địa hình ----------
+// Mỗi loại ô được vẽ sẵn (vài biến thể) vào một canvas phụ rồi dán lên bản đồ, nên vẽ chi tiết mà không tốn công mỗi khung hình.
+// Ánh sáng chiếu từ trên-trái: mặt sáng ở trái/trên, bóng đổ sang phải/dưới. Cây và núi được nhô lên trên mép ô một chút (nhìn chếch 3/4).
+const TILE_VARIANTS = 4, TILE_CACHE = new Map();
+function mulberry(seed) {
+  return () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+// màu nền cỏ/đất: [chính, mảng sáng, mảng tối, khóm cỏ]
+const GROUND = {
+  [PLAINS]: ['#8dbb55', '#a9cf6c', '#749f43', '#5d8735'],
+  [EMPTY]: ['#a3c672', '#bcd88d', '#8aad5a', '#6f9445'],
+  [FOREST]: ['#5f8d43', '#76a453', '#4c7535', '#3c5f2a'],
+  [WOODLOT]: ['#8cb563', '#a6cb7b', '#739b4d', '#5d833d'],
+  [BERRY]: ['#89b85b', '#a2cd74', '#719d47', '#5a8438'],
+  [DEER]: ['#98c165', '#b3d47f', '#7fa84f', '#668d3e'],
+  [ELEPHANT]: ['#a7b866', '#c0cb83', '#8d9d50', '#74843f'],
+  [HILLS]: ['#93b45c', '#abc875', '#7a9a49', '#62803a'],
+  [STONE]: ['#98b067', '#b0c47f', '#7f9852', '#677e42'],
+  [MOUNTAIN]: ['#8c8a76', '#a5a28c', '#73715f', '#5c5a4b'],
+  hill: ['#8dbb55', '#a9cf6c', '#749f43', '#5d8735'],
+};
+const LEAF = [['#22461a', '#346a26', '#4f8e36', '#7db450'], ['#26491a', '#3b7228', '#5a9a3a', '#8ec05a'], ['#34481a', '#516b24', '#71903a', '#a3bb5c']];
+const ROCK_GREY = ['#4f535b', '#7d828b', '#aeb3ba'], ROCK_BROWN = ['#5a4631', '#836c50', '#a99171'];
+function blob(g, x, y, rx, ry, col) { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); }
+function poly(g, pts, col) { g.beginPath(); pts.forEach(([x, y], k) => g[k ? 'lineTo' : 'moveTo'](x, y)); g.closePath(); if (col) { g.fillStyle = col; g.fill(); } }
+const shade = (g, x, y, rx, ry) => blob(g, x, y, rx, ry, 'rgba(18,28,8,.36)');
+function paintGround(g, r, pal, rand, tufts) {
+  g.save(); hexPath(g, 0, 0, r); g.clip();
+  g.fillStyle = pal[0]; g.fillRect(-r, -r, 2 * r, 2 * r);
+  for (let n = 0; n < 7; n++) { // mảng màu loang
+    g.globalAlpha = 0.32;
+    blob(g, (rand() - 0.5) * 1.7 * r, (rand() - 0.5) * 1.7 * r, r * (0.22 + rand() * 0.3), r * (0.13 + rand() * 0.18), rand() < 0.5 ? pal[1] : pal[2]);
+  }
+  g.globalAlpha = 0.6;
+  for (let n = 0; n < r * 2.4; n++) { g.fillStyle = rand() < 0.5 ? pal[1] : pal[2]; g.fillRect((rand() - 0.5) * 2 * r, (rand() - 0.5) * 2 * r, 0.9, 0.9); } // đốm nhỏ
+  g.globalAlpha = 1; g.strokeStyle = pal[3]; g.lineWidth = 0.8; g.lineCap = 'round';
+  for (let n = 0; n < tufts; n++) { // khóm cỏ
+    const x = (rand() - 0.5) * 1.5 * r, y = (rand() - 0.5) * 1.4 * r, h = 2 + rand() * 2.5;
+    g.beginPath(); g.moveTo(x - 1.6, y - h * 0.75); g.lineTo(x, y); g.lineTo(x + 1.6, y - h * 0.75); g.moveTo(x, y); g.lineTo(x + 0.2, y - h); g.stroke();
+  }
+  const vg = g.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.15, 0, 0, r * 1.15); // sáng giữa-trên, tối dần ra mép
+  vg.addColorStop(0, 'rgba(255,250,215,.13)'); vg.addColorStop(0.6, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.24)');
+  g.fillStyle = vg; g.fillRect(-r, -r, 2 * r, 2 * r);
+  g.restore();
+}
+function patch(g, r, x, y, rx, ry, c0, c1) { // mảng đất dưới mỏ
+  g.save(); hexPath(g, 0, 0, r); g.clip();
+  const gr = g.createRadialGradient(x - rx * 0.3, y - ry * 0.3, 1, x, y, rx);
+  gr.addColorStop(0, c0); gr.addColorStop(1, c1);
+  g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill();
+  g.restore();
+}
+function leafyTree(g, x, y, s, pal) { // (x, y): gốc cây
+  shade(g, x + s * 0.5, y + s * 0.05, s * 0.95, s * 0.36);
+  g.fillStyle = '#56381c'; g.fillRect(x - s * 0.11, y - s * 0.75, s * 0.22, s * 0.8);
+  g.fillStyle = '#7d5531'; g.fillRect(x - s * 0.11, y - s * 0.75, s * 0.08, s * 0.8);
+  const cy = y - s * 1.3;
+  blob(g, x + s * 0.05, cy + s * 0.12, s * 0.82, s * 0.68, pal[0]);
+  for (const [dx, dy, rr] of [[-0.38, 0.06, 0.46], [0.36, 0.1, 0.44], [0, -0.3, 0.52]]) blob(g, x + dx * s, cy + dy * s, rr * s, rr * s * 0.9, pal[1]);
+  for (const [dx, dy, rr] of [[-0.3, -0.16, 0.32], [0.1, -0.42, 0.3]]) blob(g, x + dx * s, cy + dy * s, rr * s, rr * s * 0.85, pal[2]);
+  blob(g, x - s * 0.33, cy - s * 0.32, s * 0.14, s * 0.11, pal[3]); blob(g, x - s * 0.03, cy - s * 0.56, s * 0.12, s * 0.09, pal[3]);
+}
+function pineTree(g, x, y, s) {
+  shade(g, x + s * 0.45, y + s * 0.05, s * 0.75, s * 0.3);
+  g.fillStyle = '#56381c'; g.fillRect(x - s * 0.08, y - s * 0.45, s * 0.16, s * 0.5);
+  for (let k = 0; k < 3; k++) {
+    const by = y - s * (0.3 + k * 0.55), w = s * (0.72 - k * 0.17), h = s * (0.9 - k * 0.08);
+    poly(g, [[x, by - h], [x - w, by], [x + w, by]], '#1d4524');
+    poly(g, [[x, by - h], [x - w, by], [x - w * 0.1, by + s * 0.04]], '#2f6a34');
+    poly(g, [[x, by - h], [x - w * 0.55, by - h * 0.35], [x - w * 0.15, by - h * 0.25]], '#4d8f4a');
+  }
+}
+function rock(g, x, y, s, cols, rand) {
+  shade(g, x + s * 0.35, y + s * 0.42, s * 1.05, s * 0.45);
+  const pts = [];
+  for (let k = 0; k < 7; k++) { const a = Math.PI * 2 * k / 7 + rand() * 0.45, rr = s * (0.8 + rand() * 0.3); pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.72]); }
+  poly(g, pts, cols[0]);
+  g.save(); poly(g, pts); g.clip();
+  poly(g, pts.map(([px, py]) => [x + (px - x) * 0.84 - s * 0.1, y + (py - y) * 0.8 - s * 0.14]), cols[1]);
+  poly(g, [[x - s * 0.7, y - s * 0.1], [x - s * 0.2, y - s * 0.62], [x + s * 0.3, y - s * 0.55], [x - s * 0.05, y - s * 0.12]], cols[2]);
+  g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 0.7; g.beginPath(); g.moveTo(x + s * 0.1, y - s * 0.3); g.lineTo(x + s * 0.25, y + s * 0.1); g.lineTo(x + s * 0.15, y + s * 0.35); g.stroke();
+  g.restore();
+  poly(g, pts); g.strokeStyle = 'rgba(20,16,10,.5)'; g.lineWidth = 0.8; g.stroke();
+}
+function nugget(g, x, y, s) {
+  poly(g, [[x - s, y], [x - s * 0.3, y - s * 0.8], [x + s * 0.8, y - s * 0.5], [x + s, y + s * 0.3], [x, y + s * 0.7]], '#8f620b');
+  poly(g, [[x - s * 0.7, y - s * 0.1], [x - s * 0.25, y - s * 0.6], [x + s * 0.55, y - s * 0.35], [x + s * 0.4, y + s * 0.2], [x - s * 0.1, y + s * 0.3]], '#f2c12e');
+  blob(g, x - s * 0.25, y - s * 0.28, s * 0.22, s * 0.16, '#fff3b0');
+}
+function sparkle(g, x, y, s) {
+  g.strokeStyle = 'rgba(255,250,210,.95)'; g.lineWidth = 0.8; g.beginPath();
+  g.moveTo(x - s, y); g.lineTo(x + s, y); g.moveTo(x, y - s); g.lineTo(x, y + s); g.stroke();
+}
+function bush(g, x, y, s, rand) {
+  shade(g, x + s * 0.35, y + s * 0.1, s * 1.05, s * 0.4);
+  blob(g, x, y - s * 0.45, s, s * 0.72, '#21491d');
+  for (const [dx, dy, rr] of [[-0.45, -0.4, 0.5], [0.4, -0.38, 0.5], [0, -0.75, 0.5]]) blob(g, x + dx * s, y + dy * s, rr * s, rr * s * 0.85, '#326c2a');
+  for (const [dx, dy, rr] of [[-0.35, -0.7, 0.3], [0.1, -0.95, 0.26]]) blob(g, x + dx * s, y + dy * s, rr * s, rr * s * 0.8, '#4c8d38');
+  for (let n = 0; n < 7; n++) {
+    const bx = x + (rand() - 0.5) * 1.6 * s, by = y - s * 0.45 + (rand() - 0.5) * 1.1 * s;
+    blob(g, bx, by, s * 0.15, s * 0.15, '#7c0f22'); blob(g, bx - s * 0.02, by - s * 0.02, s * 0.12, s * 0.12, '#d8253f');
+    blob(g, bx - s * 0.05, by - s * 0.06, s * 0.04, s * 0.04, '#ffc0c8');
+  }
+}
+function stump(g, x, y, s) {
+  shade(g, x + s * 0.4, y + s * 0.2, s * 0.9, s * 0.4);
+  g.fillStyle = '#5e3e20'; g.fillRect(x - s * 0.6, y - s * 0.5, s * 1.2, s * 0.6);
+  blob(g, x, y + s * 0.1, s * 0.6, s * 0.28, '#5e3e20');
+  blob(g, x, y - s * 0.5, s * 0.6, s * 0.28, '#d2a46a');
+  g.strokeStyle = '#9a6c3c'; g.lineWidth = 0.6; g.beginPath(); g.ellipse(x, y - s * 0.5, s * 0.33, s * 0.15, 0, 0, Math.PI * 2); g.stroke();
+}
+function log_(g, x, y, s) { // khúc gỗ nằm
+  shade(g, x + s * 0.3, y + s * 0.35, s * 1.4, s * 0.35);
+  g.fillStyle = '#6b4626'; g.fillRect(x - s * 1.2, y - s * 0.3, s * 2.2, s * 0.6);
+  g.fillStyle = '#87603a'; g.fillRect(x - s * 1.2, y - s * 0.3, s * 2.2, s * 0.2);
+  blob(g, x + s, y, s * 0.24, s * 0.3, '#d2a46a');
+}
+function peak(g, x, base, w, h, rand) { // một đỉnh núi đá
+  const ax = x + (rand() - 0.5) * w * 0.3, ay = base - h;
+  const L = [x - w, base], R = [x + w, base], M = [ax + w * 0.12, base];
+  poly(g, [[ax, ay], L, R], '#5a564c');
+  poly(g, [[ax, ay], L, M, [ax + w * 0.05, ay + h * 0.45]], '#8f8a7c');
+  poly(g, [[ax, ay], [x - w * 0.55, base - h * 0.35], [ax - w * 0.1, ay + h * 0.4]], '#aaa596');
+  const sn = h * 0.3; // tuyết trên đỉnh
+  poly(g, [[ax, ay], [ax - sn * 0.75, ay + sn], [ax - sn * 0.3, ay + sn * 0.75], [ax, ay + sn * 1.05], [ax + sn * 0.35, ay + sn * 0.7], [ax + sn * 0.7, ay + sn * 0.95]], '#eef0f1');
+  poly(g, [[ax, ay], [ax + sn * 0.35, ay + sn * 0.7], [ax + sn * 0.7, ay + sn * 0.95]], '#c4c9cf');
+  g.strokeStyle = 'rgba(30,28,22,.45)'; g.lineWidth = 0.7; poly(g, [[ax, ay], L, R]); g.stroke();
+}
+function mound(g, x, y, w, h) { // gò đồi cỏ (bàn cờ trận)
+  shade(g, x + w * 0.25, y + h * 0.1, w * 1.05, h * 0.45);
+  const gr = g.createLinearGradient(x - w, y - h, x + w, y);
+  gr.addColorStop(0, '#b4d47c'); gr.addColorStop(0.55, '#7ea64b'); gr.addColorStop(1, '#55782f');
+  g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, w, h, 0, Math.PI, 0); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(40,60,20,.45)'; g.lineWidth = 0.8; g.stroke();
+}
+function paintTile(g, t, r, rand, v) {
+  const k = r / 27, objs = [], add = (y, f) => objs.push([y, f]);
+  const slots = (list, n) => shuffleR(list.slice(), rand).slice(0, n).map(([x, y]) => [(x + (rand() - 0.5) * 3) * k, (y + (rand() - 0.5) * 3) * k]);
+  paintGround(g, r, GROUND[t], rand, t === PLAINS ? 16 : t === MOUNTAIN ? 3 : t === EMPTY ? 7 : 10);
   if (t === FOREST) {
-    g.fillStyle = '#265c2a';
-    for (const [dx, dy] of [[-9, 4], [6, 7], [-1, -7]]) { g.beginPath(); g.moveTo(x + dx, y + dy - 9); g.lineTo(x + dx - 6, y + dy + 4); g.lineTo(x + dx + 6, y + dy + 4); g.fill(); }
-  } else if (t === HILLS) { // mỏ vàng: gò đất và quặng vàng
-    g.strokeStyle = '#8a6a1c'; g.lineWidth = 2;
-    for (const [dx, dy] of [[-7, 4], [7, 7]]) { g.beginPath(); g.arc(x + dx, y + dy, 8, Math.PI, 0); g.stroke(); }
-    g.fillStyle = '#ffe36b';
-    for (const [dx, dy] of [[-8, -6], [4, -9], [9, -1]]) { g.beginPath(); g.arc(x + dx, y + dy, 2.6, 0, Math.PI * 2); g.fill(); }
+    for (const [x, y] of slots([[-11, 9], [9, 11], [-2, 1], [12, -3], [-13, -4], [1, -10], [-6, 14]], 5 + (v & 1))) {
+      const s = (8 + rand() * 3) * k;
+      add(y, rand() < (v < 2 ? 0.25 : 0.6) ? () => pineTree(g, x, y, s * 1.15) : () => leafyTree(g, x, y, s, LEAF[Math.floor(rand() * 3)]));
+    }
+  } else if (t === WOODLOT) {
+    for (const [x, y] of slots([[-8, 4], [8, 0], [0, -8]], 2)) { const s = 6.5 * k; add(y, () => leafyTree(g, x, y, s, LEAF[1])); }
+    for (const [x, y] of slots([[-2, 11], [-12, 10], [11, 9]], 2)) add(y, () => stump(g, x, y, 3.2 * k));
+    const lx = (v & 1 ? 4 : -4) * k; add(14 * k, () => log_(g, lx, 14 * k, 3 * k));
+  } else if (t === BERRY) {
+    for (const [x, y] of slots([[-9, 6], [8, 8], [0, -4], [-10, -7], [10, -5]], 3 + (v & 1))) add(y, () => bush(g, x, y, (6.5 + rand() * 1.5) * k, rand));
+  } else if (t === HILLS) { // mỏ vàng: mảng đất, đá nâu có vân vàng
+    patch(g, r, 0, 3 * k, 19 * k, 13 * k, '#b58d55', '#7d6136');
+    for (const [x, y] of slots([[-8, 2], [7, 6], [0, -6], [10, -4]], 3)) {
+      const s = (5.5 + rand() * 2) * k;
+      add(y, () => { rock(g, x, y, s, ROCK_BROWN, rand); nugget(g, x - s * 0.15, y - s * 0.15, s * 0.42); nugget(g, x + s * 0.4, y + s * 0.15, s * 0.3); });
+    }
+    for (const [x, y] of slots([[-3, 11], [12, 8], [-13, 7], [3, 3]], 3)) add(y + 1, () => nugget(g, x, y, 2 * k));
+    add(99, () => { sparkle(g, -6 * k, -6 * k, 2.2 * k); sparkle(g, 8 * k, -1 * k, 1.8 * k); });
+  } else if (t === STONE) { // mỏ đá: các tảng đá xám
+    patch(g, r, 0, 3 * k, 19 * k, 13 * k, '#b4b0a2', '#8a8576');
+    for (const [x, y] of slots([[-8, 3], [8, 6], [0, -6], [11, -4], [-12, -3]], 4)) add(y, () => rock(g, x, y, (5 + rand() * 2.5) * k, ROCK_GREY, rand));
+    for (const [x, y] of slots([[-3, 12], [12, 10], [-13, 9], [4, 2]], 3)) add(y + 1, () => rock(g, x, y, 1.6 * k, ROCK_GREY, rand));
   } else if (t === MOUNTAIN) {
-    g.fillStyle = '#4b4d53'; g.beginPath(); g.moveTo(x, y - 15); g.lineTo(x - 15, y + 11); g.lineTo(x + 15, y + 11); g.fill();
-    g.fillStyle = '#f0f0f0'; g.beginPath(); g.moveTo(x, y - 15); g.lineTo(x - 5, y - 6); g.lineTo(x + 5, y - 6); g.fill();
-  } else if (t === STONE) { // mỏ đá: các tảng đá
-    g.fillStyle = '#6c7078'; g.strokeStyle = '#4c4f56'; g.lineWidth = 1;
-    for (const [dx, dy, r] of [[-7, 4, 7], [7, 6, 6], [1, -7, 6]]) { g.beginPath(); g.arc(x + dx, y + dy, r, 0, Math.PI * 2); g.fill(); g.stroke(); }
-  } else if (t === WOODLOT) { // bãi gỗ nhỏ: vài cây con và gốc cây
-    g.fillStyle = '#3f7d3a';
-    for (const [dx, dy] of [[-7, 2], [6, -3]]) { g.beginPath(); g.moveTo(x + dx, y + dy - 8); g.lineTo(x + dx - 5, y + dy + 3); g.lineTo(x + dx + 5, y + dy + 3); g.fill(); }
-    g.fillStyle = '#8a5a2b';
-    for (const [dx, dy] of [[2, 8], [-9, 9], [10, 7]]) { g.beginPath(); g.arc(x + dx, y + dy, 2.6, 0, Math.PI * 2); g.fill(); }
-  } else if (t === BERRY) { // bụi quả dâu
-    g.fillStyle = '#2f7a35';
-    for (const [dx, dy, r] of [[-6, 3, 9], [7, 4, 8], [0, -6, 8]]) { g.beginPath(); g.arc(x + dx, y + dy, r, 0, Math.PI * 2); g.fill(); }
-    g.fillStyle = '#e0304a';
-    for (const [dx, dy] of [[-8, 1], [-3, 7], [5, 1], [9, 7], [-2, -8], [3, -4]]) { g.beginPath(); g.arc(x + dx, y + dy, 2.3, 0, Math.PI * 2); g.fill(); }
-  } else if (t === DEER || t === ELEPHANT) { // i: chỉ số ô trên bản đồ lớn (để biết thú còn sống hay đã thành xác)
+    add(0, () => {
+      peak(g, (v & 1 ? 11 : -11) * k, 10 * k, 10 * k, 17 * k, rand);
+      peak(g, (v & 1 ? -3 : 3) * k, 14 * k, 17 * k, 31 * k, rand);
+      peak(g, (v & 1 ? -14 : 13) * k, 17 * k, 8 * k, 12 * k, rand);
+    });
+  } else if (t === 'hill') {
+    add(0, () => { mound(g, -6 * k, 4 * k, 13 * k, 10 * k); mound(g, 8 * k, 11 * k, 11 * k, 8 * k); });
+  } else if (t === EMPTY || t === DEER || t === ELEPHANT) {
+    for (let n = 0; n < (t === EMPTY ? 3 : 1); n++) { // hoa nhỏ và sỏi
+      const x = (rand() - 0.5) * 30 * k, y = (rand() - 0.5) * 28 * k, c = ['#fff6d8', '#ffe066', '#f0a8d0'][Math.floor(rand() * 3)];
+      add(y, () => { for (let a = 0; a < 4; a++) blob(g, x + Math.cos(a * 1.57) * 1.1, y + Math.sin(a * 1.57) * 1.1, 0.9, 0.9, c); blob(g, x, y, 0.6, 0.6, '#c8902a'); });
+    }
+    if (t === EMPTY) for (let n = 0; n < 2; n++) { const x = (rand() - 0.5) * 28 * k, y = (rand() - 0.5) * 26 * k; add(y, () => rock(g, x, y, 1.5 * k, ROCK_GREY, rand)); }
+  }
+  objs.sort((a, b) => a[0] - b[0]);
+  for (const [, f] of objs) f();
+  hexPath(g, 0, 0, r - 0.5); g.strokeStyle = 'rgba(20,30,10,.3)'; g.lineWidth = 1; g.stroke(); // đường lưới ô
+}
+function shuffleR(a, rand) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const FOG = 'rgba(18,20,28,.58)';
+function tileArt(t, r, v, fog) { // fog: bản đã phủ sương (gồm cả phần cây/núi nhô ra ngoài ô)
+  const key = t + '|' + r + '|' + v + (fog ? '|f' : '');
+  let c = TILE_CACHE.get(key); if (c) return c;
+  const top = Math.ceil(r * 1.55), pad = 2, w = 2 * r + 2 * pad, h = top + r + pad;
+  c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2;
+  const g = c.getContext('2d');
+  if (fog) {
+    g.drawImage(tileArt(t, r, v), 0, 0);
+    g.globalCompositeOperation = 'source-atop'; g.fillStyle = FOG; g.fillRect(0, 0, c.width, c.height);
+  } else {
+    g.scale(2, 2); g.translate(w / 2, top);
+    paintTile(g, t, r, mulberry((typeof t === 'number' ? t : 97) * 7919 + v * 104729 + r * 31), v);
+  }
+  Object.assign(c, { ox: w / 2, oy: top, lw: w, lh: h });
+  TILE_CACHE.set(key, c); return c;
+}
+// Vẽ cả ô địa hình tâm (x, y) cỡ r. i: chỉ số ô trên bản đồ lớn (biết thú còn sống hay đã thành xác); battle: ô trên bàn cờ trận
+function drawTile(g, t, x, y, r, i, battle, fog) {
+  const art = battle && t === HILLS ? 'hill' : t, seed = ((i == null ? 0 : i) + (battle ? 53 : 0)) * 2654435761 >>> 0;
+  const c = tileArt(art, r, (seed >>> 7) % TILE_VARIANTS, fog);
+  g.drawImage(c, x - c.ox, y - c.oy, c.lw, c.lh);
+  if (!battle && (t === DEER || t === ELEPHANT)) {
     const dead = i != null && isDead(i), name = t === DEER ? 'deer' : 'elephant';
+    shade(g, x + 3, y + 10, 11, 3.5);
     drawIcon(g, `animals/${name}${dead ? '_dead' : ''}`, x, y, 30);
     if (i != null && t === ELEPHANT && !dead && eleHp(i) < ELEPHANT_HP) hpBar(g, x, y + 15, 24, eleHp(i) / ELEPHANT_HP); // voi bị thương
-  } else if (t === EMPTY) {
-    g.fillStyle = 'rgba(70,110,40,.45)';
-    for (const [dx, dy] of [[-8, -4], [5, 6], [9, -7], [-3, 9]]) { g.beginPath(); g.arc(x + dx, y + dy, 1.6, 0, Math.PI * 2); g.fill(); }
   }
+}
+// Công trình: nền màu phe dưới chân, ảnh (assets/buildings/*.svg) và cờ phe. size: cỡ ảnh; big: Nhà chính (cờ to hơn)
+const BLD_SIZE = { house: 34, farm: 50 }; // cỡ ảnh riêng từng loại công trình trên bản đồ; loại khác dùng 44
+function drawBuilding(g, x, y, key, color, size, flag, big) {
+  g.save();
+  g.beginPath(); g.ellipse(x, y + 10, size * 0.4, size * 0.13, 0, 0, Math.PI * 2);
+  g.globalAlpha = 0.35; g.fillStyle = color; g.fill();
+  g.globalAlpha = 0.9; g.lineWidth = 1.5; g.strokeStyle = color; g.stroke();
+  g.restore();
+  if (IMG[key]) g.drawImage(IMG[key], x - size / 2, y + 14 - size * 0.9, size, size);
+  else drawIcon(g, key, x, y, size * 0.5);
+  if (!flag) return;
+  const fx = x + size * (big ? 0.36 : 0.4), top = y - size * (big ? 0.62 : 0.55), wave = Math.sin(performance.now() / 400 + x) * 1.2;
+  g.strokeStyle = '#3a2614'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(fx, y + 6); g.lineTo(fx, top); g.stroke();
+  const fw = big ? 11 : 8, fh = big ? 7 : 5.5;
+  g.beginPath(); g.moveTo(fx, top); g.quadraticCurveTo(fx + fw / 2, top - 1.5 + wave, fx + fw, top + fh / 2 + wave); g.quadraticCurveTo(fx + fw / 2, top + fh + wave, fx, top + fh); g.closePath();
+  g.fillStyle = color; g.fill(); g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 1; g.stroke();
 }
 function hpBar(g, x, y, w, f) {
   f = Math.max(0, Math.min(1, f));
   g.fillStyle = '#111'; g.fillRect(x - w / 2, y, w, 4);
   g.fillStyle = f > 0.5 ? '#5fd35a' : f > 0.25 ? '#e8c33a' : '#e8503a'; g.fillRect(x - w / 2, y, w * f, 4);
 }
-function drawToken(g, x, y, color, key, hp, maxHp, dim, r) { // key: tên ảnh, vd 'units/club'
-  g.globalAlpha = dim ? 0.5 : 1;
-  g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = color; g.fill();
-  g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke();
-  drawIcon(g, key, x, y, r * 1.6);
-  g.globalAlpha = 1;
-  hpBar(g, x, y + r + 2, r * 2, hp / maxHp);
+// Đơn vị: người/ngựa đứng trên vòng màu phe, áo tô màu phe. key: tên ảnh, vd 'units/club'; dim: đã hết lượt (vẽ mờ)
+function drawToken(g, x, y, color, key, hp, maxHp, dim, r, flip) { // flip: quay mặt sang trái (phe địch)
+  const im = teamImg(key, color), fy = y + r * 0.7; // fy: mặt đất dưới chân
+  g.save(); g.globalAlpha = dim ? 0.5 : 1;
+  if (!im) { // chưa có ảnh: vòng tròn màu phe + emoji như cũ
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = color; g.fill();
+    g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke();
+    drawIcon(g, key, x, y, r * 1.6);
+  } else {
+    g.beginPath(); g.ellipse(x, fy, r * 0.95, r * 0.36, 0, 0, Math.PI * 2);
+    g.globalAlpha *= 0.5; g.fillStyle = color; g.fill();
+    g.globalAlpha = dim ? 0.5 : 1; g.lineWidth = 1.6; g.strokeStyle = color; g.stroke();
+    const size = r * 2.7;
+    if (flip) { g.translate(x, 0); g.scale(-1, 1); g.drawImage(im, -size / 2, fy - size * 0.9, size, size); } else g.drawImage(im, x - size / 2, fy - size * 0.9, size, size);
+  }
+  g.restore();
+  hpBar(g, x, y + r * 1.1 + 1, r * 1.8, hp / maxHp);
 }
 function badge(g, x, y, text, bg) {
   g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fillStyle = bg; g.fill();
   g.font = 'bold 9px "Segoe UI", "Segoe UI Emoji", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillStyle = '#fff'; g.fillText(text, x, y + 0.5);
 }
+// ô trong sương được vẽ sẵn bản tối; ô có công trình hoặc thú thì vẫn phủ sương sau cùng để che cả chúng
+const fogTile = (me, i) => !me.visible[i] && !G.bld[i] && G.t[i] !== DEER && G.t[i] !== ELEPHANT;
 function draw() {
   requestAnimationFrame(draw);
   if (B) drawBattle();
   drawMini();
   const g = ctx2;
   g.setTransform(2, 0, 0, 2, 0, 0);
-  g.fillStyle = '#0b0c10'; g.fillRect(0, 0, W, H);
+  g.clearRect(0, 0, W, H); // nền trong suốt: thấy nền của khung bản đồ (style.css)
   if (!G) return;
   const me = G.players[0];
   for (let i = 0; i < N * N; i++) {
     const { x, y } = CEN[i];
     hexPath(g, x, y, S - 0.5);
     if (!known(me, i)) { g.fillStyle = '#050507'; g.fill(); g.strokeStyle = '#15161c'; g.lineWidth = 1; g.stroke(); continue; }
-    g.fillStyle = TERRAIN[G.t[i]].color; g.fill();
-    g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1; g.stroke();
-    drawDeco(g, G.t[i], x, y, i);
+    drawTile(g, G.t[i], x, y, S, i, false, fogTile(me, i));
   }
   // lãnh thổ
   for (const p of G.players) {
@@ -2098,18 +2331,14 @@ function draw() {
     g.globalAlpha = 1;
   }
   // công trình
-  for (const b of Object.values(G.bld)) {
+  for (const b of Object.values(G.bld).sort((a, c) => a.tile - c.tile)) { // hàng dưới vẽ sau, che hàng trên
     const i = b.tile; if (!me.explored[i]) continue;
     const { x, y } = CEN[i];
-    g.globalAlpha = b.done ? (b.id === 'farm' ? 0.85 : 1) : 0.6;
-    g.fillStyle = b.id === 'farm' ? '#7a9a3a' : '#2a2f3b'; g.strokeStyle = G.players[b.owner].color; g.lineWidth = 2;
-    g.beginPath(); g.rect(x - 13, y - 13, 26, 26); g.fill(); g.stroke();
-    drawIcon(g, b.done ? 'buildings/' + b.id : 'buildings/site', x, y, 22);
-    g.globalAlpha = 1;
+    drawBuilding(g, x, y, b.done ? 'buildings/' + b.id : 'buildings/site', G.players[b.owner].color, BLD_SIZE[b.done ? b.id : 'site'] || 44, b.done && b.id !== 'farm');
     if (me.visible[i] || b.owner === 0) { if (!b.done) hpBar(g, x, y + 15, 26, b.prog / b.need); else if (b.hp < b.max) hpBar(g, x, y + 15, 26, b.hp / b.max); }
   }
   // sương mù xám
-  for (let i = 0; i < N * N; i++) if (known(me, i) && !me.visible[i]) { hexPath(g, CEN[i].x, CEN[i].y, S - 0.5); g.fillStyle = 'rgba(18,20,28,.58)'; g.fill(); }
+  for (let i = 0; i < N * N; i++) if (known(me, i) && !me.visible[i] && !fogTile(me, i)) { hexPath(g, CEN[i].x, CEN[i].y, S - 0.5); g.fillStyle = FOG; g.fill(); }
   // đánh dấu lựa chọn
   if (selB != null) { const bi = selB === 'city' ? me.city.i : selB; hexPath(g, CEN[bi].x, CEN[bi].y, S - 2); g.strokeStyle = '#ffe14a'; g.lineWidth = 3; g.stroke(); }
   // xem trước tầm của quân dưới chuột (địch: vùng nó có thể đi/đánh tới ở lượt của nó)
@@ -2133,7 +2362,9 @@ function draw() {
   for (const p of G.players) {
     const c = p.city; if (!me.explored[c.i]) continue;
     const { x, y } = CEN[c.i];
-    drawToken(g, x, y - 2, p.color, p.age >= 2 ? 'buildings/city2' : 'buildings/city1', me.visible[c.i] || p.id === 0 ? c.hp : c.maxHp, c.maxHp, false, 16);
+    drawBuilding(g, x, y, p.age >= 2 ? 'buildings/city2' : 'buildings/city1', p.color, 54, true, true);
+    const hp = me.visible[c.i] || p.id === 0 ? c.hp : c.maxHp;
+    if (hp < c.maxHp) hpBar(g, x, y + 17, 30, hp / c.maxHp);
   }
   // đơn vị (gộp theo ô vì dân có thể đứng chung ô mỏ)
   const groups = new Map();
@@ -2141,10 +2372,10 @@ function draw() {
   for (const [i, list] of groups) {
     const u = list.includes(sel) ? sel : list[0], { x, y } = CEN[i], s = ust(u);
     const mine = u.owner === 0, ready = mine && list.some(needsOrders), spent = mine && !isVil(u) && (u.attacked || u.mp <= 0);
-    drawToken(g, x, y - 2, G.players[u.owner].color, 'units/' + u.type, u.hp, s.hp, spent, 12);
+    drawToken(g, x, y - 2, G.players[u.owner].color, 'units/' + u.type, u.hp, s.hp, spent, 12, u.owner !== 0);
     if (ready && !G.busy) { // vòng xanh nhấp nháy: còn chờ lệnh
       const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
-      g.beginPath(); g.arc(x, y - 2, 15.5 + pulse * 2, 0, Math.PI * 2);
+      g.beginPath(); g.ellipse(x, y - 2 + 12 * 0.7, 13 + pulse * 2, 5.5 + pulse, 0, 0, Math.PI * 2); // vòng dưới chân
       g.strokeStyle = 'rgba(0,0,0,.75)'; g.lineWidth = 5.5; g.stroke();
       g.strokeStyle = `rgba(150,255,90,${0.7 + 0.3 * pulse})`; g.lineWidth = 3; g.stroke();
     } else if (spent) badge(g, x + 10, y - 12, '✓', '#555b6b');

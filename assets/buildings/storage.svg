@@ -1,1 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><g stroke="#1d1a16" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="10" y="14" width="44" height="42" fill="#b9813f"/><path d="M10 14l44 42M54 14L10 56" stroke="#7a4f22"/><rect x="10" y="14" width="44" height="42" fill="none"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><g stroke="#2a1f14" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+<ellipse cx="33" cy="57" rx="29" ry="5.5" fill="#000" opacity=".28" stroke="none"/>
+<path d="M6 30h52v6H6z" fill="#b98c55"/>
+<path d="M8 30V18M56 30V18M32 30V16" stroke="#5a3a1c" stroke-width="3.6"/><path d="M8 30V18M56 30V18M32 30V16" stroke="#9a6435" stroke-width="1.8"/>
+<path d="M3 20l3-7h52l3 7z" fill="#c9a36a"/><path d="M6 13h52l3 7H44z" fill="#a8844e" stroke="none"/><path d="M3 20l3-7h52l3 7z" fill="none"/>
+<path d="M10 13v7M18 13v7M26 13v7M34 13v7M42 13v7M50 13v7" stroke="#8a6a3a" stroke-width="1.1"/>
+<path d="M2 21h60" stroke="#5a3a1c" stroke-width="2.6"/><circle cx="2" cy="21" r="1.6" fill="#7d5229"/><circle cx="62" cy="21" r="1.6" fill="#7d5229"/>
+<g stroke-width="1.5"><circle cx="13" cy="38" r="4" fill="#d2a46a"/><circle cx="21" cy="38" r="4" fill="#d2a46a"/><circle cx="17" cy="31.5" r="4" fill="#d2a46a"/></g>
+<g fill="none" stroke="#9a6c3c" stroke-width="1"><circle cx="13" cy="38" r="1.4"/><circle cx="21" cy="38" r="1.4"/><circle cx="17" cy="31.5" r="1.4"/></g>
+<path d="M28 42v-8h10v8z" fill="#a9aeb6"/><path d="M28 34l3-3h10l-3 3z" fill="#c9ced5"/><path d="M38 42v-8l3-3v8z" fill="#7d828b"/>
+<path d="M44 42l2-7 5-2 5 2 2 7z" fill="#8f620b"/><path d="M47 35l4-1.6 4 1.6-1 3h-6z" fill="#f2c12e" stroke="none"/><path d="M49 35.5l2 .5" stroke="#fff3b0" stroke-width="1.4"/>
+<path d="M2 42h60v14c-8 3-52 3-60 0z" fill="#dcb47e"/><path d="M44 42h18v14c-4 1.4-11 2.2-18 2.6z" fill="#b98c55" stroke="none"/><path d="M2 42h60v14c-8 3-52 3-60 0z" fill="none"/>
+<path d="M2 42h60" stroke="#ecc994" stroke-width="2.4"/><path d="M2 42h60" stroke="#2a1f14" stroke-width=".8" opacity=".5"/>
+<path d="M8 48h7M20 51h7M32 48h7M46 50h7M12 54h6M38 54h6" stroke="#a8743f" stroke-width="1.2"/>
+<path d="M26 58V48h12v10" fill="#4a2f18"/>
+</g></svg>

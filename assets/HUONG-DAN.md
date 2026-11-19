@@ -8,15 +8,15 @@ Thả ảnh vào đúng thư mục, đúng tên file, rồi tải lại trang ga
 
 | Tên file | Hình gì | Hiện ở đâu |
 |---|---|---|
-| `units/vil` | Dân làng | trong vòng tròn màu phe |
+| `units/vil` | Dân làng | đứng trên vòng màu phe dưới chân |
 | `units/club` | Lính chùy | " |
 | `units/axe` | Lính rìu | " |
 | `units/spear` | Lính giáo | " |
 | `units/archer` | Cung thủ | " |
 | `units/cav` | Kỵ binh | " |
-| `buildings/city1` | Nhà chính đời 1 | trong vòng tròn màu phe |
+| `buildings/city1` | Nhà chính đời 1 | trên ô bản đồ, nền và cờ màu phe |
 | `buildings/city2` | Nhà chính đời 2 | " |
-| `buildings/house` | Nhà dân | trong ô vuông tối, viền màu phe |
+| `buildings/house` | Nhà dân | trên ô bản đồ, nền và cờ màu phe |
 | `buildings/granary` | Kho thực phẩm | " |
 | `buildings/storage` | Kho tài nguyên | " |
 | `buildings/barracks` | Nhà lính | " |
@@ -36,4 +36,8 @@ Thả ảnh vào đúng thư mục, đúng tên file, rồi tải lại trang ga
 
 Ví dụ: muốn đổi hình Kỵ binh thì lưu ảnh thành `assets/units/cav.png`.
 
-Các file `.svg` hiện có là ảnh mẫu đơn giản. Khi dùng ảnh của người khác, hãy chắc chắn ảnh đó cho phép dùng lại (ví dụ giấy phép CC0).
+Ảnh đơn vị `.svg`: phần áo tô màu `#2f6fde` (sáng) và `#1f4fa8` (tối); game tự đổi hai màu này sang màu phe khi vẽ quân địch. Ảnh `.png` thì không đổi màu được, chỉ có vòng màu dưới chân cho biết phe.
+
+Ảnh đẹp nhất khi hình đứng sát đáy khung (chân ở khoảng 9/10 chiều cao), quay mặt sang phải; quân địch được lật ngược tự động.
+
+Các file `.svg` hiện có là art gốc vẽ cho game này. Khi dùng ảnh của người khác, hãy chắc chắn ảnh đó cho phép dùng lại (ví dụ giấy phép CC0).

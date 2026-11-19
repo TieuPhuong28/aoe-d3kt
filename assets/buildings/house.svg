@@ -1,1 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><g stroke="#1d1a16" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="14" y="30" width="36" height="26" fill="#d8b27a"/><path d="M6 33L32 9l26 24z" fill="#b5532f"/><rect x="27" y="40" width="10" height="16" fill="#5a3a1e"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><g stroke="#2a1f14" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+<ellipse cx="34" cy="56" rx="26" ry="6" fill="#000" opacity=".28" stroke="none"/>
+<path d="M14 38v12c0 4 8 7 18 7s18-3 18-7V38z" fill="#c9915a"/>
+<path d="M37 41v15.5c7-.8 13-3 13-6.5V38z" fill="#a5703d" stroke="none"/>
+<path d="M18 46h4M23 51h5M40 47h5" stroke="#8a5a2e" stroke-width="1.2"/>
+<path d="M26 57v-9a5 5 0 0 1 10 0v9" fill="#3d2614"/>
+<path d="M7 40L32 9l25 31c-6 4-15 5.5-25 5.5S13 44 7 40z" fill="#dcb45c"/>
+<path d="M32 9l25 31c-6 4-15 5.5-25 5.5z" fill="#b48d3e" stroke="none"/>
+<path d="M7 40L32 9l25 31c-6 4-15 5.5-25 5.5S13 44 7 40z" fill="none"/>
+<path d="M20 25l-7 15M26 18l-5 25M38 18l5 25M44 25l7 15M30 14l-1 30" stroke="#8f6c2c" stroke-width="1.1" fill="none"/>
+<path d="M28.5 13.5L32 5l3.5 8.5" fill="#8f6c2c"/>
+</g></svg>
