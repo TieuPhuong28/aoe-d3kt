@@ -214,7 +214,7 @@ let tacticalOn = true;
 try { tacticalOn = localStorage.getItem('tac') !== '0'; } catch (e) { /* bỏ qua */ }
 
 // ---------- Trạng thái ----------
-let G = null, sel = null, selReach = new Map(), selTargets = new Map(), selAtk = new Set(), hoverRange = null, hover = -1, placing = null, selPick = null, selB = null, tab = 'eco', logOpen = false;
+let G = null, sel = null, selReach = new Map(), selTargets = new Map(), selAtk = new Set(), hoverRange = null, hover = -1, placing = null, selPick = null, selB = null, tab = 'eco';
 const floaters = [];
 
 function genMap(depth = 0) { // depth >= 2: cấu hình quanh nhà không xếp vừa, chấp nhận bản đồ đặt được nhiều nhất có thể
@@ -1163,7 +1163,7 @@ const selGroup = () => {
 };
 function select(u, pick = null) { // pick: id các lính được tách khỏi đạo (null = cả đạo)
   sel = u; selReach = new Map(); selTargets = new Map(); selAtk = new Set(); selPick = null;
-  if (u) selB = null;
+  if (u) { selB = null; ensureVisible(u.i); }
   if (u && pick) {
     const st = groupAt(u), ids = pick.filter(id => st.some(m => m.id === id && canSplit(m)));
     if (ids.length && ids.length < st.length) { selPick = ids; sel = st.find(m => m.id === ids[0]); }
@@ -1254,28 +1254,68 @@ function nextUnit() { // mỗi đạo chỉ tính một lần
   select(list[(list.indexOf(cur) + 1) % list.length]); renderUI();
 }
 
-const cv = document.getElementById('cv'), ctx2 = cv.getContext('2d'), tip = document.getElementById('tip');
-cv.width = W * 2; cv.height = H * 2; cv.style.aspectRatio = `${W}/${H}`;
+const cv = document.getElementById('cv'), ctx2 = cv.getContext('2d');
+// ---------- Phóng to bản đồ ----------
+// Bản đồ vừa khung ở 100%; phóng thì khung bản đồ cuộn được (kéo chuột, thanh cuộn, bấm bản đồ con).
+// RES: số điểm ảnh canvas cho mỗi đơn vị tọa độ, tăng theo tỷ lệ phóng để hình vẫn nét (tối đa 3 cho đỡ nặng).
+const ZOOMS = [1, 1.25, 1.5, 1.75, 2, 2.5, 3], mapwrap = document.getElementById('mapwrap');
+let zoom = 1, RES = 0;
+try { const z = +localStorage.getItem('zoom'); if (ZOOMS.includes(z)) zoom = z; } catch (e) { /* bỏ qua */ }
+// (px, py): điểm trên màn hình giữ nguyên chỗ khi đổi tỷ lệ (mặc định giữa khung)
+function applyZoom(px, py) {
+  const r = mapwrap.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+  if (px == null) { px = r.left + r.width / 2; py = r.top + r.height / 2; }
+  const fx = cr.width ? (px - cr.left) / cr.width : 0.5, fy = cr.height ? (py - cr.top) / cr.height : 0.5;
+  const fit = Math.min(r.width / W, r.height / H), cw = Math.floor(W * fit * zoom), ch = Math.floor(H * fit * zoom);
+  cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
+  const res = Math.min(3, Math.max(2, Math.ceil(fit * zoom * (window.devicePixelRatio || 1) * 2) / 2)); // điểm ảnh thật trên mỗi đơn vị, làm tròn 0.5
+  if (res !== RES) { RES = res; cv.width = Math.round(W * RES); cv.height = Math.round(H * RES); TILE_CACHE.clear(); } // chỉ gọi sau khi cả file đã chạy (ResizeObserver, cuối file)
+  mapwrap.scrollLeft = fx * cw - (px - r.left);
+  mapwrap.scrollTop = fy * ch - (py - r.top);
+}
+function setZoom(z, px, py) {
+  if (!ZOOMS.includes(z) || z === zoom) return;
+  zoom = z;
+  try { localStorage.setItem('zoom', String(z)); } catch (e) { /* bỏ qua */ }
+  applyZoom(px, py);
+  if (G) renderUI();
+}
+const zoomStep = (d, px, py) => setZoom(ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom) + d))], px, py);
+// đưa ô i vào giữa khung nếu nó đang nằm ngoài phần nhìn thấy
+function ensureVisible(i) {
+  if (i == null || zoom === 1) return;
+  const r = mapwrap.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+  const x = cr.left + CEN[i].x / W * cr.width, y = cr.top + CEN[i].y / H * cr.height, m = 40;
+  if (x < r.left + m || x > r.right - m) mapwrap.scrollLeft += x - (r.left + r.width / 2);
+  if (y < r.top + m || y > r.bottom - m) mapwrap.scrollTop += y - (r.top + r.height / 2);
+}
+new ResizeObserver(() => applyZoom()).observe(mapwrap);
+cv.addEventListener('wheel', e => { e.preventDefault(); zoomStep(e.deltaY < 0 ? 1 : -1, e.clientX, e.clientY); }, { passive: false });
+// kéo chuột trái để di chuyển bản đồ đã phóng; kéo xong thì không tính là bấm ô
+let drag = null, dragged = false;
+cv.addEventListener('pointerdown', e => { if (e.button === 0) { drag = { x: e.clientX, y: e.clientY, sl: mapwrap.scrollLeft, st: mapwrap.scrollTop }; dragged = false; } });
+window.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!dragged && Math.hypot(dx, dy) < 6) return;
+  dragged = true; cv.classList.add('grab');
+  mapwrap.scrollLeft = drag.sl - dx; mapwrap.scrollTop = drag.st - dy;
+});
+window.addEventListener('pointerup', () => { drag = null; cv.classList.remove('grab'); });
 function tileFromEvent(e) {
   const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height;
   let best = -1, bd = S * S;
   for (let i = 0; i < N * N; i++) { const dx = CEN[i].x - x, dy = CEN[i].y - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
   return best;
 }
-cv.addEventListener('click', e => onTileClick(tileFromEvent(e)));
+cv.addEventListener('click', e => { if (dragged) { dragged = false; return; } onTileClick(tileFromEvent(e)); });
 cv.addEventListener('contextmenu', e => { e.preventDefault(); if (G && !G.busy) { placing = null; select(null); selB = null; renderUI(); } });
-cv.addEventListener('mouseleave', () => { hover = -1; tip.style.display = 'none'; });
+// Rê chuột: thông tin ô hiện ở cột "Ô dưới chuột" của bảng dưới đáy (không che bản đồ)
+cv.addEventListener('mouseleave', () => { hover = -1; renderInfo(); });
 cv.addEventListener('mousemove', e => {
   if (!G) return;
-  hover = tileFromEvent(e);
-  const html = hover >= 0 ? tipHtml(hover) : '';
-  if (!html) { tip.style.display = 'none'; return; }
-  const wr = cv.parentElement.getBoundingClientRect();
-  tip.innerHTML = html; tip.style.display = 'block';
-  let x = e.clientX - wr.left + 16, y = e.clientY - wr.top + 16;
-  if (x + 250 > wr.width) x -= 270;
-  if (y + tip.offsetHeight > wr.height) y -= tip.offsetHeight + 24;
-  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  const i = tileFromEvent(e);
+  if (i !== hover) { hover = i; renderInfo(); }
 });
 document.addEventListener('keydown', e => {
   if (!G || document.getElementById('overlay').classList.contains('show')) return;
@@ -1285,7 +1325,11 @@ document.addEventListener('keydown', e => {
   else if ((e.key === 'h' || e.key === 'H') && !G.busy) { selectBld('city'); renderUI(); }
   else if (['1', '2', '3'].includes(e.key)) { tab = ['eco', 'mil', 'tech'][+e.key - 1]; renderUI(); }
   else if (e.key === 'm' || e.key === 'M') toggleMini();
+  else if (e.key === '+' || e.key === '=') zoomStep(1);
+  else if (e.key === '-' || e.key === '_') zoomStep(-1);
+  else if (e.key === '0') setZoom(1);
 });
+document.addEventListener('change', e => { if (e.target.id === 'zoomsel') setZoom(+e.target.value); });
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const [act, a, c] = b.dataset.act.split(':');
@@ -1295,6 +1339,7 @@ document.addEventListener('click', e => {
   if (act === 'help') { showHelp(); return; }
   if (act === 'close') { document.getElementById('overlay').classList.remove('show'); return; }
   if (act === 'mini') { toggleMini(); return; }
+  if (act === 'zoom') { zoomStep(+a); return; }
   if (act === 'admin') { showAdmin(); return; }
   if (act === 'cfg') { adminAct(a); return; }
   if (act === 'unselb') { selB = null; renderUI(); return; }
@@ -1317,7 +1362,6 @@ document.addEventListener('click', e => {
   else if (act === 'unpick' && sel) select(sel);
   else if (act === 'selb') selectBld(a === 'city' ? 'city' : +a);
   else if (act === 'tab') tab = a;
-  else if (act === 'logtoggle') logOpen = !logOpen;
   else if (act === 'train') train(me, where, c);
   else if (act === 'age') { if (startAge(me)) log('Bắt đầu tiến lên Đời Công Cụ.', 'info'); }
   else if (act === 'canceltrain') cancelTrain(me, where);
@@ -1430,7 +1474,7 @@ function unitStatus(p, u) {
   const g = gatherAt(p, u.i);
   return g ? `⛏ ${resIco(g.res)} ${g.d} lượt/chuyến` : '🟢 rảnh';
 }
-function selectBld(x) { select(null); selB = x; } // x: 'city' hoặc ô của công trình
+function selectBld(x) { select(null); selB = x; ensureVisible(x === 'city' ? G.players[0].city.i : x); } // x: 'city' hoặc ô của công trình
 function ageUnlocks(age) { // những gì một đời mở khóa
   const b = Object.values(BUILDINGS).filter(d => d.age === age).map(d => `${d.ico} ${d.name}`);
   const u = Object.values(UNITS).filter(d => d.age === age).map(d => `${d.ico} ${d.name}`);
@@ -1449,16 +1493,21 @@ function renderUI() {
     ${stat('food')}${stat('wood')}${stat('stone')}${stat('gold')}
     <span class="stat" title="Dân số đang dùng / giới hạn (dân làng + quân). Mỗi Nhà dân +${CFG.pop.perHouse}, tối đa ${POP_MAX}">👥 <b>${popUsed(me)}/${popCap(me)}</b></span>
     <span class="spacer"></span>
-    <button class="btn" data-act="tac" title="Khi hai đạo quân giao chiến: hỏi chọn Chỉ huy trực tiếp, hay luôn tính tự động">⚔ Trận đánh: ${tacticalOn ? 'Hỏi' : 'Tự động'}</button>
-    <button class="btn" data-act="admin" title="Cấu hình giá và hệ thống kinh tế (dành cho người quản lý trò chơi)">⚙ Quản trị</button>
-    <button class="btn" data-act="mini" title="Ẩn/hiện bản đồ con (phím M)">🗺 Bản đồ con: ${miniOn ? 'Hiện' : 'Ẩn'}</button>
-    <button class="btn" data-act="help">Hướng dẫn</button>
-    <button class="btn${idle ? ' attn' : ''}" data-act="next" ${idle ? '' : 'disabled'}>Đơn vị rảnh (N) · ${idle}</button>
-    <button class="btn primary" data-act="end" ${G.busy ? 'disabled' : ''}>${G.busy ? 'Địch đang đi…' : 'Kết thúc lượt (Enter)'}</button>`;
+    <span class="zoom" title="Phóng to bản đồ: con lăn chuột trên bản đồ, phím + − 0; kéo chuột để di chuyển khi đã phóng to">
+      <button class="btn" data-act="zoom:-1" ${zoom <= ZOOMS[0] ? 'disabled' : ''}>−</button>
+      <select id="zoomsel">${ZOOMS.map(z => `<option value="${z}"${z === zoom ? ' selected' : ''}>${Math.round(z * 100)}%</option>`).join('')}</select>
+      <button class="btn" data-act="zoom:1" ${zoom >= ZOOMS[ZOOMS.length - 1] ? 'disabled' : ''}>+</button>
+    </span>
+    <button class="btn" data-act="tac" title="Khi hai đạo quân giao chiến: hỏi chọn Chỉ huy trực tiếp, hay luôn tính tự động">⚔ ${tacticalOn ? 'Hỏi' : 'Tự động'}</button>
+    <button class="btn" data-act="mini" title="Ẩn/hiện bản đồ con (phím M)">🗺 ${miniOn ? 'Hiện' : 'Ẩn'}</button>
+    <button class="btn" data-act="admin" title="Quản trị: cấu hình giá và hệ thống kinh tế">⚙</button>
+    <button class="btn" data-act="help" title="Hướng dẫn">?</button>
+    <button class="btn${idle ? ' attn' : ''}" data-act="next" ${idle ? '' : 'disabled'} title="Chọn đơn vị rảnh kế tiếp (phím N)">Rảnh · ${idle}</button>
+    <button class="btn primary" data-act="end" ${G.busy ? 'disabled' : ''} title="Kết thúc lượt (Enter)">${G.busy ? 'Địch đang đi…' : 'Kết thúc lượt ⏎'}</button>`;
 
   // ----- 1) Đang chọn: đổi theo thứ vừa bấm trên bản đồ -----
   const hint = '<div class="muted">Ô sáng: đi ngay · Ô xa: tự đi nhiều lượt · Chuột phải/Esc: bỏ chọn</div>';
-  let h = '';
+  let h = '', cmd = '';
   if (sel && isVil(sel)) {
     const s = ust(sel), freeN = freeSites(me).length, grp = selGroup(), crew = vilsAt(sel.i, 0), picking = !!selPick;
     if (crew.length > 1) { // đoàn dân: liệt kê từng người, tách được như đạo quân
@@ -1475,14 +1524,16 @@ function renderUI() {
       <div class="row"><span>Máu ${sel.hp}/${s.hp}</span><span>Di chuyển ${sel.mp}/${s.mp}</span></div>
       <div class="muted">${unitStatus(me, sel)} — ${s.desc}</div>${hint}
       ${sel.goto != null || sel.build != null ? '<button class="opt" data-act="stop">✋ Dừng việc đang làm</button>' : ''}`;
-    h += placing ? `<div class="place">📍 Bấm một ô <b>Đất trống</b> viền vàng để đặt ${BUILDINGS[placing.id].name}${BUILDINGS[placing.id].drop ? ' (kho đặt được cả ngoài lãnh thổ)' : ''}. <button class="btn" data-act="unplace">Hủy</button></div>`
-      : `<h3 style="margin-top:8px">🔨 Xây dựng</h3>`;
+    h += `</div>`;
+    cmd += `<div class="card wide"><h3>🔨 Xây dựng</h3>` + (placing ? `<div class="place">📍 Bấm một ô <b>Đất trống</b> viền vàng để đặt ${BUILDINGS[placing.id].name}${BUILDINGS[placing.id].drop ? ' (kho đặt được cả ngoài lãnh thổ)' : ''}. <button class="btn" data-act="unplace">Hủy</button></div>` : '') + '<div class="grid">';
     for (const [id, d] of Object.entries(BUILDINGS)) {
       const locked = d.age > me.age, needs = d.req && !countBld(me, d.req, true);
       const desc = id === 'farm' ? `1 dân, ${FARM_LOAD} Thức ăn/chuyến, cạn sau ${farmAmtOf(me)}${hasTech(me, 'farm') ? ' (nhờ Thuần hóa)' : ''}` : d.desc;
-      h += `<button class="opt" data-act="bld:${id}" ${!locked && !needs && canAfford(me, d.cost) && (freeN || d.drop) ? '' : 'disabled'}>${d.ico} ${d.name}<span class="c">${costStr(d.cost)} · ${d.turns} lượt</span><span class="d">${locked ? '🔒 Cần Đời Công Cụ' : needs ? `🔒 Cần xây xong ${BUILDINGS[d.req].name}` : desc}</span></button>`;
+      cmd += `<button class="opt" data-act="bld:${id}" ${!locked && !needs && canAfford(me, d.cost) && (freeN || d.drop) ? '' : 'disabled'}>${d.ico} ${d.name}<span class="c">${costStr(d.cost)} · ${d.turns} lượt</span><span class="d">${locked ? '🔒 Cần Đời Công Cụ' : needs ? `🔒 Cần xây xong ${BUILDINGS[d.req].name}` : desc}</span></button>`;
     }
-    h += `</div>`;
+    cmd += `</div></div>`;
+    paintPanels(h, cmd, 'units/' + sel.type);
+    return;
   } else if (sel) {
     const grp = selGroup(), stack = armyAt(sel.i, 0), picking = !!selPick;
     h += `<div class="card ctx"><h3>⚔ Đạo quân · ${stack.length}/${ARMY_MAX}${picking ? ` <small class="muted">· đang tách ${grp.length} lính</small>` : ''}</h3>
@@ -1507,11 +1558,11 @@ function renderUI() {
       ${isCity ? '' : `<div class="muted">${d.desc}${b.id === 'farm' && b.done ? ` · còn ${b.amt} ${resIco('food')}` : ''}</div>`}</div>`;
     if (!isCity && !b.done) {
       const n = G.units.filter(u => u.build === b.tile).length;
-      h += `<div class="card"><h3>🚧 Đang xây</h3><div class="bar prod"><i style="width:${b.prog / b.need * 100}%"></i></div><div class="${n ? 'muted' : 'place'}">👷 ${n} dân đang xây. Chọn một dân rồi bấm vào công trình này để ${n ? 'cùng xây cho nhanh' : 'bắt đầu xây'}.</div></div>`;
+      cmd += `<div class="card"><h3>🚧 Đang xây</h3><div class="bar prod"><i style="width:${b.prog / b.need * 100}%"></i></div><div class="${n ? 'muted' : 'place'}">👷 ${n} dân đang xây. Chọn một dân rồi bấm vào công trình này để ${n ? 'cùng xây cho nhanh' : 'bắt đầu xây'}.</div></div>`;
     } else {
       if (trains.length || q.queue.length) {
-        h += `<div class="card"><h3>⏳ Hàng chờ${q.queue.length ? ` · ${q.queue.length}/${QUEUE_MAX}` : ''}</h3>${queueProgressHtml(where, q)}</div>`;
-        if (trains.length) h += `<div class="card"><h3>🧑 Quân mua tại đây</h3>${trainOptsHtml(me, where, q, trains)}</div>`;
+        cmd += `<div class="card"><h3>⏳ Hàng chờ${q.queue.length ? ` · ${q.queue.length}/${QUEUE_MAX}` : ''}</h3>${queueProgressHtml(where, q)}</div>`;
+        if (trains.length) cmd += `<div class="card wide"><h3>🧑 Quân mua tại đây</h3>${trainOptsHtml(me, where, q, trains)}</div>`;
       }
       let up = '';
       if (isCity && me.age === 1 && !c.queue.some(x => x.kind === 'age')) {
@@ -1519,48 +1570,59 @@ function renderUI() {
         up += `<button class="opt" data-act="age" ${req >= 2 && me.res.food >= AGE_COST ? '' : 'disabled'}>⬆️ Lên Đời Công Cụ<span class="c">🍖${AGE_COST} · ${AGE_TURNS} lượt</span><span class="d">Cần 2 trong 3: Kho thực phẩm, Kho tài nguyên, Nhà lính (đang có ${req}/2)</span></button>`;
       }
       if (!isCity) up += techOptsHtml(me, where, b);
-      h += `<div class="card"><h3>⬆️ Nâng cấp</h3>${up || '<div class="muted">Hiện chưa có nâng cấp nào tại nhà này.</div>'}</div>`;
+      cmd += `<div class="card wide"><h3>⬆️ Nâng cấp</h3>${up || '<div class="muted">Hiện chưa có nâng cấp nào tại nhà này.</div>'}</div>`;
     }
-    document.getElementById('side').innerHTML = h;
+    paintPanels(h, cmd, isCity ? (me.age >= 2 ? 'buildings/city2' : 'buildings/city1') : b.done ? 'buildings/' + b.id : 'buildings/site');
     return;
   } else {
-    h += `<div class="card ctx"><h3>Chưa chọn gì</h3><div class="muted">Bấm một đơn vị hoặc công trình trên bản đồ để xem lệnh của nó.<br><b>H</b>: Nhà chính · <b>N</b>: đơn vị rảnh kế tiếp · <b>1 2 3</b>: đổi tab</div></div>`;
+    h += `<div class="card ctx"><h3>Chưa chọn gì</h3><div class="muted">Bấm một đơn vị hoặc công trình trên bản đồ để xem thông tin và lệnh của nó ở đây.<br><b>H</b>: Nhà chính · <b>N</b>: đơn vị rảnh kế tiếp · <b>1 2 3</b>: đổi tab</div></div>`;
   }
 
   // ----- 2) Ba tab tổng quan -----
   const tabBtn = (id, label, n) => `<button class="tab${tab === id ? ' on' : ''}" data-act="tab:${id}">${label}${n ? ` <i>${n}</i>` : ''}</button>`;
-  h += `<div class="tabs">${tabBtn('eco', '💰 Kinh tế', idleV)}${tabBtn('mil', '⚔ Quân sự', idleA)}${tabBtn('tech', '🔧 Kỹ thuật', 0)}</div>`;
+  const top = `<div class="tabs">${tabBtn('eco', '💰 Kinh tế', idleV)}${tabBtn('mil', '⚔ Quân sự', idleA)}${tabBtn('tech', '🔧 Kỹ thuật', 0)}</div>`;
   const unitRow = (u, label, on) => { const ready = (isVil(u) ? [u] : armyAt(u.i, 0)).some(needsOrders); return `<button class="opt unit ${ready ? 'ready' : 'spent'}${on ? ' on' : ''}" data-act="sel:${u.id}">${label}<span class="c">${unitStatus(me, u)}</span></button>`; };
   const qIcons = q => (q.queue.length ? q.queue.map(x => (x.kind === 'age' ? '⬆️' : x.kind === 'tech' ? TECHS[x.id].ico : UNITS[x.id].ico)).join('') + ` · còn ${q.queue[0].left} lượt` : 'rảnh');
   const mine = bldOf(me);
   if (tab === 'eco') {
-    h += `<div class="card"><h3>Thu nhập mỗi lượt (ước tính)</h3>
+    cmd += `<div class="card"><h3>Thu nhập mỗi lượt (ước tính)</h3>
       <div class="tags">${Object.keys(inc).map(k => `<span>${resIco(k)} +${inc[k]}</span>`).join('')}<span>👥 ${popUsed(me)}/${popCap(me)}</span></div>
       <button class="opt${selB === 'city' ? ' on' : ''}" data-act="selb:city">🏠 Nhà chính<span class="c">${qIcons(c)}</span></button></div>`;
-    h += `<div class="card"><h3>👷 Dân làng · ${vills.length} (${idleV} rảnh)</h3>${vills.map(u => unitRow(u, `${ust(u).ico} Dân làng · ❤${u.hp}/${ust(u).hp}`, u === sel)).join('') || '<div class="muted">Không còn dân làng. Bấm Nhà chính để mua.</div>'}</div>`;
+    cmd += `<div class="card"><h3>👷 Dân làng · ${vills.length} (${idleV} rảnh)</h3>${vills.map(u => unitRow(u, `${ust(u).ico} Dân làng · ❤${u.hp}/${ust(u).hp}`, u === sel)).join('') || '<div class="muted">Không còn dân làng. Bấm Nhà chính để mua.</div>'}</div>`;
     const sites = mine.filter(b => !b.done), eco = mine.filter(b => b.done && !TRAINS[b.id]);
-    if (sites.length) h += `<div class="card"><h3>🚧 Đang xây</h3>${sites.map(b => `<button class="opt${selB === b.tile ? ' on' : ''}" data-act="selb:${b.tile}">${BUILDINGS[b.id].ico} ${BUILDINGS[b.id].name}<span class="c">${b.prog}/${b.need}${G.units.some(u => u.build === b.tile) ? '' : ' · ⚠ chưa có dân xây'}</span></button>`).join('')}</div>`;
-    if (eco.length) { const cnt = {}; for (const b of eco) cnt[b.id] = (cnt[b.id] || 0) + 1; h += `<div class="card"><h3>Công trình kinh tế</h3><div class="tags">${Object.entries(cnt).map(([id, n]) => `<span>${BUILDINGS[id].ico} ${BUILDINGS[id].name} ×${n}</span>`).join('')}</div></div>`; }
+    if (sites.length) cmd += `<div class="card"><h3>🚧 Đang xây</h3>${sites.map(b => `<button class="opt${selB === b.tile ? ' on' : ''}" data-act="selb:${b.tile}">${BUILDINGS[b.id].ico} ${BUILDINGS[b.id].name}<span class="c">${b.prog}/${b.need}${G.units.some(u => u.build === b.tile) ? '' : ' · ⚠ chưa có dân xây'}</span></button>`).join('')}</div>`;
+    if (eco.length) { const cnt = {}; for (const b of eco) cnt[b.id] = (cnt[b.id] || 0) + 1; cmd += `<div class="card"><h3>Công trình kinh tế</h3><div class="tags">${Object.entries(cnt).map(([id, n]) => `<span>${BUILDINGS[id].ico} ${BUILDINGS[id].name} ×${n}</span>`).join('')}</div></div>`; }
   } else if (tab === 'mil') {
-    h += `<div class="card"><h3>⚔ Đạo quân · ${stacks.length} đạo, ${army.length} lính</h3>${stacks.map(st => unitRow(st[0], `Đạo ×${st.length} ${st.map(m => ust(m).ico).join('')}`, st.includes(sel))).join('') || '<div class="muted">Chưa có quân.</div>'}</div>`;
+    cmd += `<div class="card"><h3>⚔ Đạo quân · ${stacks.length} đạo, ${army.length} lính</h3>${stacks.map(st => unitRow(st[0], `Đạo ×${st.length} ${st.map(m => ust(m).ico).join('')}`, st.includes(sel))).join('') || '<div class="muted">Chưa có quân.</div>'}</div>`;
     const tb = mine.filter(b => b.done && TRAINS[b.id]);
-    h += `<div class="card"><h3>Nhà huấn luyện</h3>${tb.map(b => `<button class="opt${selB === b.tile ? ' on' : ''}" data-act="selb:${b.tile}">${BUILDINGS[b.id].ico} ${BUILDINGS[b.id].name}<span class="c">${qIcons(b)}</span></button>`).join('') || '<div class="muted">Chưa có. Chọn một dân làng rồi xây Nhà lính.</div>'}
+    cmd += `<div class="card"><h3>Nhà huấn luyện</h3>${tb.map(b => `<button class="opt${selB === b.tile ? ' on' : ''}" data-act="selb:${b.tile}">${BUILDINGS[b.id].ico} ${BUILDINGS[b.id].name}<span class="c">${qIcons(b)}</span></button>`).join('') || '<div class="muted">Chưa có. Chọn một dân làng rồi xây Nhà lính.</div>'}
       <div class="muted" style="margin-top:4px">Bấm một nhà để mua quân của nhà đó.</div></div>`;
   } else {
     const req = AGE_REQ.map(id => `<span>${countBld(me, id, true) ? '✅' : '⬜'} ${BUILDINGS[id].name}</span>`).join('');
     const aging = c.queue.find(x => x.kind === 'age');
-    h += `<div class="card"><h3>Kỷ nguyên: ${AGES[me.age]}</h3>`;
-    if (me.age === 1) h += `<div class="muted">Lên Đời Công Cụ: 🍖${AGE_COST}, ${AGE_TURNS} lượt, cần 2 trong 3 công trình:</div><div class="tags">${req}</div>
+    cmd += `<div class="card"><h3>Kỷ nguyên: ${AGES[me.age]}</h3>`;
+    if (me.age === 1) cmd += `<div class="muted">Lên Đời Công Cụ: 🍖${AGE_COST}, ${AGE_TURNS} lượt, cần 2 trong 3 công trình:</div><div class="tags">${req}</div>
       ${aging ? `<div class="place" style="margin-top:6px">⬆️ Đang lên đời — còn ${aging.left} lượt.</div>` : `<button class="opt" data-act="selb:city">🏠 Mở Nhà chính để lên đời<span class="c">${ageReq(me)}/2 · 🍖${me.res.food}/${AGE_COST}</span></button>`}`;
-    else h += `<div class="muted">Bạn đã ở đời cao nhất của phiên bản này.</div>`;
-    h += `</div><div class="card"><h3>Đời 1 · Đồ Đá mở khóa</h3>${ageUnlocks(1)}</div><div class="card"><h3>Đời 2 · Công Cụ mở khóa</h3>${ageUnlocks(2)}<div class="muted" style="margin-top:4px">Và lãnh thổ rộng thêm 1 vòng.</div></div>
+    else cmd += `<div class="muted">Bạn đã ở đời cao nhất của phiên bản này.</div>`;
+    cmd += `</div><div class="card"><h3>Đời 1 · Đồ Đá mở khóa</h3>${ageUnlocks(1)}</div><div class="card"><h3>Đời 2 · Công Cụ mở khóa</h3>${ageUnlocks(2)}<div class="muted" style="margin-top:4px">Và lãnh thổ rộng thêm 1 vòng.</div></div>
 `;
-    h += techTabHtml(me);
+    cmd += techTabHtml(me);
   }
-  // ----- 3) Nhật ký thu gọn được -----
-  const last = G.log[G.log.length - 1];
-  h += `<div class="card"><h3 class="fold" data-act="logtoggle">${logOpen ? '▾' : '▸'} Nhật ký</h3><div id="log">${logOpen ? G.log.slice().reverse().map(l => `<div class="${l.cls}">[${l.t}] ${l.msg}</div>`).join('') : (last ? `<div class="${last.cls}">[${last.t}] ${last.msg}</div>` : '')}</div></div>`;
-  document.getElementById('side').innerHTML = h;
+  paintPanels(h, cmd, sel ? 'units/' + sel.type : null, top);
+}
+// Bảng dưới đáy. h: thẻ "đang chọn" (cột trái, kèm ảnh chân dung key); cmd: các thẻ lệnh xếp ngang (cột giữa); top: hàng tab trên các thẻ
+function paintPanels(h, cmd, key, top = '') {
+  const pic = key ? (IMG[key] ? `<img class="portrait" src="${IMG[key].src}" alt="">` : `<span class="portrait">${ICON_EMOJI[key] || ''}</span>`) : '';
+  document.getElementById('selbox').innerHTML = pic + h;
+  document.getElementById('cmdbox').innerHTML = top + `<div class="cards">${cmd}</div>`;
+  renderInfo();
+}
+// Cột "Ô dưới chuột" của bảng dưới: thông tin ô dưới chuột; khi không rê chuột trên bản đồ thì hiện nhật ký
+function renderInfo() {
+  const box = document.getElementById('infobox');
+  if (!G) { box.innerHTML = ''; return; }
+  if (hover >= 0) { box.innerHTML = `<h3>🔍 Ô dưới chuột</h3><div class="tipbody">${tipHtml(hover)}</div>`; return; }
+  box.innerHTML = `<h3>📜 Nhật ký</h3><div id="log">${G.log.slice().reverse().map(l => `<div class="${l.cls}">[${l.t}] ${l.msg}</div>`).join('') || '<div class="muted">Chưa có gì.</div>'}</div>`;
 }
 
 function showMenu() {
@@ -1606,7 +1668,7 @@ function showHelp() {
       <li>Mỏ cạn sẽ thành Đất trống. Ruộng lúa (Đời 2, cần có Chợ) cho ${FARM_LOAD}/chuyến và cạn sau ${FARM_AMT} (Thuần hóa ở Chợ: +${TECHS.farm.farmAmt}).</li>
       <li>Nâng cấp (Đời 2): Kho tài nguyên tăng Công/Thủ cho quân, Chợ tăng khai thác, Nhà lính có Rìu đồng. Nâng cấp xếp chung hàng chờ với quân và giữ mãi kể cả khi nhà bị phá.</li></ul>
     <h2>Xây dựng và dân số</h2><ul>
-      <li>Chọn một dân → chọn công trình ở cột phải → bấm ô Đất trống viền vàng trong lãnh thổ. Lãnh thổ gồm vùng quanh Nhà chính và ${TERR_BLD} ô quanh mỗi công trình đã xây xong của bạn (kể cả kho dựng ngoài xa), nhưng không lấn vào vùng quanh Nhà chính địch. Dân tự đi tới và xây khi đứng kề công trình. Chọn thêm dân rồi bấm vào công trình dang dở để cùng xây: mỗi dân góp 1 lượt công mỗi lượt.</li>
+      <li>Chọn một dân → chọn công trình ở bảng lệnh dưới đáy → bấm ô Đất trống viền vàng trong lãnh thổ. Lãnh thổ gồm vùng quanh Nhà chính và ${TERR_BLD} ô quanh mỗi công trình đã xây xong của bạn (kể cả kho dựng ngoài xa), nhưng không lấn vào vùng quanh Nhà chính địch. Dân tự đi tới và xây khi đứng kề công trình. Chọn thêm dân rồi bấm vào công trình dang dở để cùng xây: mỗi dân góp 1 lượt công mỗi lượt.</li>
       <li>Dân số tính chung dân và quân: Nhà chính ${CFG.pop.base} chỗ, mỗi Nhà dân +${CFG.pop.perHouse}, tối đa ${POP_MAX}.</li>
       <li>Lên Đời Công Cụ tại Nhà chính: 🍖${AGE_COST}, ${AGE_TURNS} lượt, cần 2 trong 3 công trình Kho thực phẩm / Kho tài nguyên / Nhà lính. Lãnh thổ rộng thêm 1 vòng.</li>
       <li>Công trình có Máu và bị phá được. Công trình địch chặn đường; công trình của mình thì đi xuyên qua được nhưng không dừng lại trên đó. Không có chi phí duy trì.</li></ul>
@@ -1615,8 +1677,9 @@ function showHelp() {
       <li>Tầm nhìn: Nhà chính 2 ô, công trình 1 ô, dân làng 1 ô, lính 2 ô, Kỵ binh 3 ô. Muốn thấy xa phải cho đơn vị đi dò.</li>
       <li>Lính giáo x2 lên Kỵ binh · Kỵ binh x1.5 lên Cung thủ · Cung thủ bắn xa 3 ô trong trận (không bắn xuyên Đá tảng; đứng trên Đồi +1 sát thương), yếu khi bị áp sát.</li>
       <li><b>Đạo quân:</b> tối đa ${ARMY_MAX} lính đứng chung một ô. Đi lính vào ô có lính mình để nhập đạo; bấm ô là chọn cả đạo; cả đạo đi theo quân chậm nhất.</li>
+      <li><b>Phóng to bản đồ:</b> lăn chuột trên bản đồ, nút − / + hoặc chọn tỷ lệ (100%–300%) trên thanh trên cùng, phím <b>+ − 0</b>. Khi đã phóng to: kéo chuột để di chuyển, hoặc bấm vào bản đồ con để nhảy tới chỗ đó (khung trắng là phần đang thấy).</li>
       <li><b>Tầm đi và tầm đánh:</b> chọn quân thì ô viền trắng là chỗ đi tới được trong lượt này, ô viền đỏ là chỗ đánh tới được (trên bản đồ lớn mọi đòn đều cận chiến: phải đứng kề, nên tầm đánh là các ô kề tầm đi). Rê chuột lên quân địch để thấy vùng cam (nó đi tới được) và vùng đỏ (nó đánh tới được) ở lượt của nó; rê lên quân mình đã hết MP để xem tầm lượt sau.</li>
-      <li><b>Tách quân:</b> ở cột phải, bấm <b>☐ Tách</b> trên một hoặc vài lính (hoặc <b>✂ Tách đôi</b>), rồi bấm ô sáng để nhóm đó ra thành đạo mới — hoặc bấm vòng đỏ để chỉ nhóm đó giao chiến, phần còn lại đứng yên. Nhóm tách đi theo lính chậm nhất trong nhóm; lính đã đánh hoặc hết MP trong lượt thì không tách được. Hai đạo nhập lại bằng cách đi vào cùng ô (tối đa ${ARMY_MAX}). AI cũng theo luật này: nó tách lính bị thương nặng về nhà nghỉ hồi máu.</li>
+      <li><b>Tách quân:</b> ở khung "Đang chọn" dưới đáy (góc trái), bấm <b>☐ Tách</b> trên một hoặc vài lính (hoặc <b>✂ Tách đôi</b>), rồi bấm ô sáng để nhóm đó ra thành đạo mới — hoặc bấm vòng đỏ để chỉ nhóm đó giao chiến, phần còn lại đứng yên. Nhóm tách đi theo lính chậm nhất trong nhóm; lính đã đánh hoặc hết MP trong lượt thì không tách được. Hai đạo nhập lại bằng cách đi vào cùng ô (tối đa ${ARMY_MAX}). AI cũng theo luật này: nó tách lính bị thương nặng về nhà nghỉ hồi máu.</li>
       <li>Rừng, Mỏ vàng, Mỏ đá: +1 Thủ; Rừng che giấu quân. Đơn vị đứng yên một lượt hồi 2 Máu.</li>
       <li>Dân làng có Công ${UNITS.vil.atk}, Thủ ${UNITS.vil.def}, ${UNITS.vil.hp} Máu: chọn dân rồi bấm vòng đỏ để đánh dân, quân, công trình hay Nhà chính địch đứng kề (đánh đạo quân thì mở trận đánh, dân có Tốc độ ${UNITS.vil.init}, đi sau cùng). Dân yếu và không phản đòn khi bị đánh trên bản đồ, nên vẫn cần lính bảo vệ.</li></ul>
     <h2>Trận đánh thủ công</h2><ul>
@@ -2237,13 +2300,13 @@ function tileArt(t, r, v, fog) { // fog: bản đã phủ sương (gồm cả ph
   const key = t + '|' + r + '|' + v + (fog ? '|f' : '');
   let c = TILE_CACHE.get(key); if (c) return c;
   const top = Math.ceil(r * 1.55), pad = 2, w = 2 * r + 2 * pad, h = top + r + pad;
-  c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2;
+  c = document.createElement('canvas'); c.width = Math.ceil(w * RES); c.height = Math.ceil(h * RES);
   const g = c.getContext('2d');
   if (fog) {
     g.drawImage(tileArt(t, r, v), 0, 0);
     g.globalCompositeOperation = 'source-atop'; g.fillStyle = FOG; g.fillRect(0, 0, c.width, c.height);
   } else {
-    g.scale(2, 2); g.translate(w / 2, top);
+    g.scale(RES, RES); g.translate(w / 2, top);
     paintTile(g, t, r, mulberry((typeof t === 'number' ? t : 97) * 7919 + v * 104729 + r * 31), v);
   }
   Object.assign(c, { ox: w / 2, oy: top, lw: w, lh: h });
@@ -2313,7 +2376,7 @@ function draw() {
   if (B) drawBattle();
   drawMini();
   const g = ctx2;
-  g.setTransform(2, 0, 0, 2, 0, 0);
+  g.setTransform(RES, 0, 0, RES, 0, 0);
   g.clearRect(0, 0, W, H); // nền trong suốt: thấy nền của khung bản đồ (style.css)
   if (!G) return;
   const me = G.players[0];
@@ -2465,7 +2528,7 @@ function star(g, x, y, r, fill) {
 }
 function drawMini() {
   const show = miniOn && !!G;
-  mini.style.display = show ? 'block' : 'none';
+  mini.parentElement.style.display = show ? '' : 'none';
   if (!show) return;
   const g = mctx, me = G.players[0], k = MINI_K;
   g.setTransform(2, 0, 0, 2, 0, 0);
@@ -2490,7 +2553,18 @@ function drawMini() {
     if (p.id === 0) { g.beginPath(); g.arc(x, y, 9 + pulse * 4, 0, Math.PI * 2); g.strokeStyle = `rgba(255,225,74,${0.9 - pulse * 0.5})`; g.lineWidth = 2; g.stroke(); }
     star(g, x, y, 7.5, p.id ? '#ff4a3a' : '#ffe14a');
   }
+  if (zoom > 1) { // khung trắng: phần bản đồ đang thấy
+    const r = mapwrap.getBoundingClientRect(), cr = cv.getBoundingClientRect(), cl = v => Math.max(0, Math.min(1, v));
+    const x0 = cl((r.left - cr.left) / cr.width), x1 = cl((r.right - cr.left) / cr.width), y0 = cl((r.top - cr.top) / cr.height), y1 = cl((r.bottom - cr.top) / cr.height);
+    g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.strokeRect(x0 * W * k, y0 * H * k, (x1 - x0) * W * k, (y1 - y0) * H * k);
+  }
 }
+mini.addEventListener('click', e => { // bấm bản đồ con: đưa chỗ đó vào giữa khung
+  const r = mini.getBoundingClientRect();
+  mapwrap.scrollLeft = (e.clientX - r.left) / r.width * cv.offsetWidth - mapwrap.clientWidth / 2;
+  mapwrap.scrollTop = (e.clientY - r.top) / r.height * cv.offsetHeight - mapwrap.clientHeight / 2;
+});
 
+applyZoom();
 showMenu();
 requestAnimationFrame(draw);

@@ -23,8 +23,8 @@ button { font: inherit; cursor: pointer; }
 
 /* ---------- Thanh trên: tấm ván gỗ, viền đồng ---------- */
 #top {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  padding: 7px 12px 8px;
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  padding: 3px 10px 4px; font-size: 13px;
   background: var(--grain), linear-gradient(#5a3e22, #3e2a16 55%, #2e1f10);
   border-bottom: 3px solid var(--bronze);
   box-shadow: inset 0 1px 0 rgba(255,225,170,.25), 0 3px 0 #1a1007, 0 6px 14px rgba(0,0,0,.55);
@@ -34,9 +34,18 @@ button { font: inherit; cursor: pointer; }
   display: inline-flex; align-items: center; gap: 4px;
   background: linear-gradient(#2a1d10, #1c130a); border: 1px solid #120b05;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.6), 0 1px 0 rgba(255,220,160,.18);
-  border-radius: 7px; padding: 3px 10px; white-space: nowrap; color: var(--text-2);
+  border-radius: 6px; padding: 1px 8px; white-space: nowrap; color: var(--text-2);
 }
-.stat b { color: #fff; font-size: 15px; }
+.stat b { color: #fff; font-size: 14px; }
+/* thanh trên: nút thấp gọn */
+#top .btn { padding: 2px 9px; }
+#top .stat img.ic { width: 1.35em; height: 1.35em; }
+.zoom { display: inline-flex; align-items: center; gap: 3px; }
+.zoom .btn { padding: 0 8px; font-weight: 700; min-width: 26px; }
+.zoom select {
+  background: linear-gradient(#2a1d10, #1c130a); color: #fff; border: 1px solid #120b05; border-radius: 6px;
+  padding: 1px 2px; font: inherit; box-shadow: inset 0 2px 4px rgba(0,0,0,.6); cursor: pointer;
+}
 .stat small { color: var(--ok); margin-left: 1px; }
 .stat small.neg { color: var(--bad); }
 .stat.age {
@@ -63,28 +72,45 @@ button { font: inherit; cursor: pointer; }
 .btn:disabled { opacity: .45; cursor: default; }
 
 /* ---------- Bản đồ ---------- */
-#main { flex: 1; display: flex; min-height: 0; }
+#main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 #mapwrap {
-  flex: 1; position: relative; min-width: 0;
-  display: flex; align-items: center; justify-content: center;
+  flex: 1; position: relative; min-width: 0; min-height: 0; overflow: auto;
+  display: flex; /* canvas căn giữa bằng margin:auto: khi phóng to vẫn cuộn được tới mép trái/trên */
   background: radial-gradient(ellipse at center, #1f2a17 0%, #141a0f 55%, #0b0d08 100%);
 }
-#cv { max-width: 100%; max-height: 100%; display: block; cursor: pointer; }
-#tip {
-  position: absolute; pointer-events: none; display: none; max-width: 250px;
-  background: linear-gradient(#33261a, #251b11); border: 1px solid var(--bronze); border-radius: 7px;
-  padding: 6px 10px; font-size: 13px; z-index: 5; color: var(--text);
-  box-shadow: 0 4px 14px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,220,160,.15);
+#cv { flex: none; margin: auto; display: block; cursor: pointer; touch-action: none; }
+#cv.grab { cursor: grabbing; }
+/* ---------- Bảng điều khiển ngang dưới đáy: đang chọn · lệnh · ô dưới chuột · bản đồ con ---------- */
+#bottom {
+  flex: none; height: 232px; display: flex; gap: 8px; padding: 9px 10px 10px;
+  background: var(--grain), linear-gradient(#4a331d, #2e1f12 40%, #24180d);
+  border-top: 3px solid var(--bronze);
+  box-shadow: inset 0 1px 0 rgba(255,225,170,.25), 0 -3px 0 #1a1007, 0 -6px 14px rgba(0,0,0,.5);
+  position: relative; z-index: 2;
 }
-#tip .warn { color: #ffb37a; }
-
-/* ---------- Cột phải: khung gỗ, thẻ da thuộc ---------- */
-#side {
-  width: 340px; flex: none; overflow-y: auto; padding: 10px 9px;
-  background: var(--grain), linear-gradient(90deg, #2a1d11, #22180e);
-  border-left: 3px solid var(--bronze);
-  box-shadow: inset 4px 0 10px rgba(0,0,0,.5);
+.pane {
+  min-width: 0; overflow-y: auto; border-radius: 9px; padding: 8px 10px;
+  background: linear-gradient(#2a1e13, #1f160d); border: 1px solid #120b05;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.65), 0 1px 0 rgba(255,220,160,.15);
 }
+.pane h3 { margin: 0 0 6px; font: 700 15px var(--serif); color: var(--gold-l); }
+#selbox { flex: 0 1 330px; min-width: 230px; }
+#selbox .card { background: none; border: 0; box-shadow: none; padding: 0; margin: 0; }
+.portrait {
+  float: left; width: 64px; height: 64px; margin: 0 9px 4px 0; padding: 3px; font-size: 40px; line-height: 58px; text-align: center;
+  background: radial-gradient(#5a7a3a, #2e3d1e); border: 2px solid var(--bronze); border-radius: 8px;
+  box-shadow: inset 0 0 8px rgba(0,0,0,.6);
+}
+#cmdbox { flex: 1 1 380px; display: flex; flex-direction: column; overflow: hidden; }
+#cmdbox .tabs { flex: none; max-width: 520px; }
+.cards { flex: 1; min-height: 0; display: flex; gap: 8px; overflow-x: auto; align-items: stretch; }
+.cards > .card { flex: 0 0 250px; margin: 0; overflow-y: auto; }
+.cards > .card.wide { flex-basis: 470px; }
+.cards .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0 6px; }
+#infobox { flex: 0 1 280px; min-width: 190px; font-size: 13px; }
+#infobox .warn { color: #ffb37a; }
+#infobox #log { max-height: none; }
+#minibox { flex: none; display: flex; align-items: center; justify-content: center; }
 .card {
   background: linear-gradient(var(--card-2), var(--card));
   border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; margin-bottom: 9px;
@@ -176,8 +202,7 @@ button { font: inherit; cursor: pointer; }
 
 /* Bản đồ con: khung gỗ viền đồng */
 #mini {
-  position: absolute; left: 10px; bottom: 10px; display: none; z-index: 4; pointer-events: none;
-  border: 3px solid var(--bronze); border-radius: 9px; background: #0b0d08;
+  display: block; border: 3px solid var(--bronze); border-radius: 9px; background: #0b0d08;
   box-shadow: 0 0 0 2px #1a1007, 0 4px 14px rgba(0, 0, 0, .7);
 }
 
@@ -229,10 +254,12 @@ img.ic { width: 1.3em; height: 1.3em; vertical-align: -0.3em; object-fit: contai
 .lg.atk { background: #ff3b2f; position: relative; }
 .lg.atk::after { content: ''; position: absolute; inset: 2.5px; background: var(--card); clip-path: inherit; }
 
-/* Màn hình hẹp: cột phải xuống dưới bản đồ */
-@media (max-width: 760px) {
+/* Màn hình hẹp: bảng dưới xếp thành nhiều hàng, cuộn cả trang */
+@media (max-width: 900px) {
   body { overflow: auto; }
-  #main { flex-direction: column; }
-  #side { width: auto; border-left: 0; border-top: 3px solid var(--bronze); }
+  #main { min-height: auto; }
   #mapwrap { min-height: 60vh; }
+  #bottom { height: auto; flex-wrap: wrap; }
+  #selbox, #infobox, #cmdbox { flex: 1 1 100%; max-height: 260px; }
+  #minibox { display: none !important; }
 }

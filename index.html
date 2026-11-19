@@ -11,10 +11,14 @@
 <div id="main">
   <div id="mapwrap">
     <canvas id="cv"></canvas>
-    <div id="tip"></div>
-    <canvas id="mini" title="Bản đồ con — phím M để ẩn/hiện"></canvas>
   </div>
-  <aside id="side"></aside>
+  <!-- Bảng điều khiển ngang dưới đáy: đang chọn · lệnh · ô dưới chuột / nhật ký · bản đồ con -->
+  <footer id="bottom">
+    <section id="selbox" class="pane"></section>
+    <section id="cmdbox" class="pane"></section>
+    <section id="infobox" class="pane"></section>
+    <section id="minibox"><canvas id="mini" title="Bản đồ con — phím M để ẩn/hiện"></canvas></section>
+  </footer>
 </div>
 <div id="overlay"></div>
 <script src="game.js"></script>
