@@ -14,8 +14,14 @@ Thả ảnh vào đúng thư mục, đúng tên file, rồi tải lại trang ga
 | `units/spear` | Lính giáo | " |
 | `units/archer` | Cung thủ | " |
 | `units/cav` | Kỵ binh | " |
+| `units/sword` | Kiếm sĩ (Đời 3) | " |
+| `units/pike` | Lính trường thương (Đời 3) | " |
+| `units/archer2` | Cung thủ đồng (Đời 3) | " |
+| `units/hcav` | Kỵ binh nặng (Đời 3) | " |
+| `units/chariot` | Xe chiến (Đời 3) | " |
 | `buildings/city1` | Nhà chính đời 1 | trên ô bản đồ, nền và cờ màu phe |
 | `buildings/city2` | Nhà chính đời 2 | " |
+| `buildings/city3` | Nhà chính đời 3 (Đồ Đồng) | " |
 | `buildings/house` | Nhà dân | trên ô bản đồ, nền và cờ màu phe |
 | `buildings/granary` | Kho thực phẩm | " |
 | `buildings/storage` | Kho tài nguyên | " |
@@ -33,6 +39,8 @@ Thả ảnh vào đúng thư mục, đúng tên file, rồi tải lại trang ga
 | `res/wood` | Gỗ | " |
 | `res/stone` | Đá | " |
 | `res/gold` | Vàng | " |
+| `ui/atk`, `ui/def`, `ui/range`, `ui/mp`, `ui/hp` | Icon chỉ số Công, Thủ, Tầm, Di chuyển, Máu | ô chỉ số khi chọn quân |
+| `tech/<mã>` | Icon nâng cấp, mã như trong `TECHS` của game.js (`axe`, `tool`, `armInf`, `armArc`, `armCav`, `wood`, `farm`, `stone`, `gold`, `sword`, `pike`, `archer2`, `arrow`, `hcav`, `yoke`, `bronze`, `brInf`, `brArc`, `brCav`, `wood2`, `stone2`, `gold2`) | ô nâng cấp ở nhà, hàng chờ |
 
 Ví dụ: muốn đổi hình Kỵ binh thì lưu ảnh thành `assets/units/cav.png`.
 

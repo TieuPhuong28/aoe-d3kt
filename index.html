@@ -3,17 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bình Minh Bộ Tộc — Demo</title>
+<title>Đế chế D3KT</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header id="top"></header>
 <div id="main">
-  <div id="mapwrap">
-    <canvas id="cv"></canvas>
+  <div id="mid">
+    <div id="mapwrap">
+      <canvas id="cv"></canvas>
+    </div>
+    <!-- Thanh dọc bên phải: dân làng và đạo quân (đang chọn, lệnh, danh sách) -->
+    <aside id="side"></aside>
+    <div id="toasts"></div>
   </div>
   <!-- Bảng điều khiển ngang dưới đáy: đang chọn · lệnh · ô dưới chuột / nhật ký · bản đồ con -->
   <footer id="bottom">
+    <button id="bottomtoggle" class="btn" data-act="panel" title="Thu gọn / mở bảng điều khiển (phím B)">▾ Thu gọn</button>
     <section id="selbox" class="pane"></section>
     <section id="cmdbox" class="pane"></section>
     <section id="infobox" class="pane"></section>
