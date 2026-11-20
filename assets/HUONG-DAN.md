@@ -9,13 +9,20 @@ Thả ảnh vào đúng thư mục, đúng tên file, rồi tải lại trang ga
 | Tên file | Hình gì | Hiện ở đâu |
 |---|---|---|
 | `units/vil` | Dân làng | đứng trên vòng màu phe dưới chân |
+| `units/vil_idle` | Dân làng đang rảnh | " (thiếu ảnh việc nào thì dùng `units/vil`) |
+| `units/vil_berry` | Dân hái quả | " |
+| `units/vil_hunt` | Dân săn / xẻ thịt hươu, voi | " |
+| `units/vil_farm` | Dân làm ruộng | " |
+| `units/vil_wood` | Dân đốn gỗ | " |
+| `units/vil_mine` | Dân đào đá, vàng | " |
+| `units/vil_build` | Dân đang xây | " |
 | `units/club` | Lính chùy | " |
 | `units/axe` | Lính rìu | " |
-| `units/spear` | Lính giáo | " |
 | `units/archer` | Cung thủ | " |
-| `units/cav` | Kỵ binh | " |
+| `units/scout` | Ngựa dò (Đời 2) | " |
+| `units/cav` | Kỵ binh (Đời 3) | " |
 | `units/sword` | Kiếm sĩ (Đời 3) | " |
-| `units/pike` | Lính trường thương (Đời 3) | " |
+| `units/pike` | Lính trường thương (Đời 3, mua ở Trại trường thương) | " |
 | `units/archer2` | Cung thủ đồng (Đời 3) | " |
 | `units/hcav` | Kỵ binh nặng (Đời 3) | " |
 | `units/chariot` | Xe chiến (Đời 3) | " |
@@ -29,6 +36,7 @@ Thả ảnh vào đúng thư mục, đúng tên file, rồi tải lại trang ga
 | `buildings/farm` | Ruộng lúa | " |
 | `buildings/range` | Trường bắn cung | " |
 | `buildings/stable` | Chuồng ngựa | " |
+| `buildings/pikehall` | Trại trường thương (Đời 3) | " |
 | `buildings/market` | Chợ | " |
 | `buildings/site` | Công trình đang xây | " |
 | `animals/deer` | Đàn hươu (còn sống) | trên ô bản đồ |
@@ -40,7 +48,7 @@ Thả ảnh vào đúng thư mục, đúng tên file, rồi tải lại trang ga
 | `res/stone` | Đá | " |
 | `res/gold` | Vàng | " |
 | `ui/atk`, `ui/def`, `ui/range`, `ui/mp`, `ui/hp` | Icon chỉ số Công, Thủ, Tầm, Di chuyển, Máu | ô chỉ số khi chọn quân |
-| `tech/<mã>` | Icon nâng cấp, mã như trong `TECHS` của game.js (`axe`, `tool`, `armInf`, `armArc`, `armCav`, `wood`, `farm`, `stone`, `gold`, `sword`, `pike`, `archer2`, `arrow`, `hcav`, `yoke`, `bronze`, `brInf`, `brArc`, `brCav`, `wood2`, `stone2`, `gold2`) | ô nâng cấp ở nhà, hàng chờ |
+| `tech/<mã>` | Icon nâng cấp, mã như trong `TECHS` của game.js (`axe`, `tool`, `armInf`, `armArc`, `armCav`, `wood`, `farm`, `stone`, `gold`, `sword`, `archer2`, `arrow`, `hcav`, `yoke`, `bronze`, `brInf`, `brArc`, `brCav`, `wood2`, `stone2`, `gold2`) | ô nâng cấp ở nhà, hàng chờ |
 
 Ví dụ: muốn đổi hình Kỵ binh thì lưu ảnh thành `assets/units/cav.png`.
 

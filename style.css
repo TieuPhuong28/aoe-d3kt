@@ -566,3 +566,22 @@ img.ic { width: 1.3em; height: 1.3em; vertical-align: -0.3em; object-fit: contai
 }
 .ngsel { min-width: 220px; max-width: 100%; padding: 5px 10px; border-radius: 7px; border: 1px solid var(--gold); background: linear-gradient(#5a4220, #3e2c14); color: var(--gold-l); font: 700 14px "Segoe UI", system-ui, sans-serif; cursor: pointer; }
 .ngsel option { background: #2c2015; color: var(--text); font-weight: 400; }
+
+/* Sân tập trận đánh */
+.modal.btest { max-width: 1000px; }
+.btcols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
+.btside { border: 1px solid rgba(122,90,53,.5); border-radius: 10px; padding: 8px 12px 12px; background: rgba(0,0,0,.18); }
+.btside.ally { border-top: 3px solid #2f6fde; }
+.btside.foe { border-top: 3px solid #d0453a; }
+.btside h2 { margin-top: 4px; }
+.btlab { margin: 10px 0 4px; font-weight: 700; color: var(--text-2); }
+.btunits { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; }
+.btu { display: grid; grid-template-columns: 1fr 26px 22px 26px; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 6px; opacity: .75; }
+.btu.on { opacity: 1; background: rgba(240,180,60,.12); }
+.btu b { text-align: center; }
+.btu .btn.sm { padding: 1px 0; min-width: 0; }
+.btside .seg button { padding: 3px 8px; font-size: 13px; }
+.btsim { margin-top: 10px; padding: 8px 12px; border-radius: 8px; background: rgba(0,0,0,.25); }
+.bspd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bspd .seg button { padding: 3px 9px; font-size: 13px; }
+@media (max-width: 760px) { .btcols, .btunits { grid-template-columns: 1fr; } }
