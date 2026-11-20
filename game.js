@@ -43,12 +43,14 @@ const UNITS = {
   pike: { name: 'Lính trường thương', icon: '🔱', cls: 'spear', hp: 15, atk: 5, def: 3, mp: 2, bmp: 2, range: 1, vision: 2, cost: { food: 60, gold: 40 }, turns: 2, age: 3, at: 'pikehall', desc: 'Quân khắc kỵ, mua ở Trại trường thương. x2 sát thương lên Kỵ binh và Xe chiến.' },
   archer2: { name: 'Cung thủ đồng', icon: '🏹', cls: 'archer', hp: 10, atk: 3, def: 1, mp: 2, range: 2, vision: 3, cost: { food: 40, wood: 30 }, turns: 2, age: 3, at: 'range', desc: 'Cung thủ Đồ Đồng, nhìn xa 3 ô. Trong trận bắn xa 3 ô; tên bỏ qua Thủ, chỉ Giáp tên chặn được; yếu khi bị áp sát.' },
   hcav: { name: 'Kỵ binh nặng', icon: '🐎', cls: 'cav', hp: 18, atk: 6, def: 3, mp: 4, range: 1, vision: 3, cost: { food: 60, gold: 50 }, turns: 3, age: 3, at: 'stable', desc: 'Kỵ binh mặc giáp đồng. x1.5 lên Cung thủ; sợ Lính trường thương.' },
-  chariot: { name: 'Xe chiến', icon: '🛞', cls: 'chariot', hp: 18, atk: 4, def: 3, arcDef: 2, mp: 3, range: 1, vision: 2, cost: { food: 60, wood: 60 }, turns: 3, age: 3, at: 'stable', desc: 'Không tốn Vàng. +2 Giáp tên: chịu tên tốt, áp sát Cung thủ; bị Lính trường thương x2.' },
+  chariot: { name: 'Xe chiến', icon: '🛞', cls: 'chariot', hp: 18, atk: 4, def: 3, arcDef: 2, mp: 3, range: 1, vision: 2, cost: { food: 60, wood: 60 }, turns: 3, age: 3, at: 'stable', tech: 'wheel', desc: 'Cần Bánh xe (Chợ). x1.5 sát thương lên Thầy tu. Không tốn Vàng. +2 Giáp tên: chịu tên tốt, áp sát Cung thủ; bị Lính trường thương x2.' },
+  carcher: { name: 'Xe cung', icon: '🏹', cls: 'archer', hp: 14, atk: 3, def: 1, mp: 3, range: 2, vision: 3, cost: { food: 40, wood: 70 }, turns: 3, age: 3, at: 'range', tech: 'wheel', desc: 'Cần Bánh xe (Chợ). x1.5 sát thương lên Thầy tu. Xe ngựa chở cung thủ: không tốn Vàng, Máu cao và đi nhanh hơn Cung thủ. Trong trận bắn xa 3 ô; tên bỏ qua Thủ, chỉ Giáp tên chặn được; yếu khi bị áp sát, sợ Kỵ binh.' },
+  priest: { name: 'Thầy tu', icon: '🧙', cls: 'priest', hp: 8, atk: 0, def: 0, mp: 2, range: 1, brange: 3, vision: 3, cost: { gold: 125 }, turns: 3, age: 3, at: 'temple', desc: 'Không đánh. Trong trận: cải đạo một quân địch trong tầm 3 ô (25% mỗi lần thử); thành công thì quân đó theo phe ta, Thầy tu nghỉ hồi sức 2 lượt. Trên bản đồ: đạo có Thầy tu đứng yên cả lượt thì mỗi lính hồi thêm 2 Máu. Sợ Xe chiến, Xe cung (x1.5).' },
 };
 // Chỉ số riêng trên bàn cờ trận đánh (chỉnh được ở Quản trị): init = Tốc độ (ai cao đi trước),
 // bmp = Di chuyển mỗi lượt trong trận, brange = Tầm đánh trong trận (1 = cận chiến)
-const INIT = { cav: 8, archer: 6, chariot: 6, inf: 5, spear: 2, vil: 3 };
-for (const d of Object.values(UNITS)) Object.assign(d, { init: INIT[d.cls], bmp: d.bmp || d.mp + 1, brange: d.range > 1 ? 3 : 1 });
+const INIT = { cav: 8, archer: 6, chariot: 6, inf: 5, spear: 2, vil: 3, priest: 4 };
+for (const d of Object.values(UNITS)) Object.assign(d, { init: INIT[d.cls], bmp: d.bmp || d.mp + 1, brange: d.brange || (d.range > 1 ? 3 : 1) });
 const BUILDINGS = {
   house: { name: 'Nhà dân', icon: '🏠', cost: { wood: 30 }, turns: 1, hp: 20, age: 1, desc: '+4 chỗ dân số' },
   granary: { name: 'Kho thực phẩm', icon: '🌾', cost: { wood: 120 }, turns: 2, hp: 30, age: 1, drop: 'food', desc: 'Điểm trả Thức ăn — đặt sát mỏ quả, hươu, voi, ruộng; xây được ngoài lãnh thổ' },
@@ -59,11 +61,13 @@ const BUILDINGS = {
   range: { name: 'Trường bắn cung', icon: '🎯', cost: { wood: 150 }, turns: 3, hp: 40, age: 2, desc: 'Huấn luyện Cung thủ' },
   stable: { name: 'Chuồng ngựa', icon: '🐴', cost: { wood: 150 }, turns: 3, hp: 40, age: 2, desc: 'Huấn luyện Ngựa dò (Đời 2), Kỵ binh, Xe chiến (Đời 3)' },
   pikehall: { name: 'Trại trường thương', icon: '🔱', cost: { wood: 200 }, turns: 3, hp: 40, age: 3, desc: 'Huấn luyện Lính trường thương (khắc Kỵ binh, Xe chiến)' },
+  academy: { name: 'Học viện', icon: '🏛️', cost: { wood: 200, stone: 100 }, turns: 4, hp: 60, age: 3, req: 'market', desc: 'Nghiên cứu Quý tộc, Kiến trúc, Hậu cần. Không bán quân. Cần đã xây Chợ' },
+  temple: { name: 'Đền', icon: '⛩️', cost: { wood: 200 }, turns: 3, hp: 50, age: 3, req: 'market', desc: 'Huấn luyện Thầy tu (cải đạo quân địch, hồi máu cho đạo). Cần đã xây Chợ' },
 };
 // Nâng cấp (nghiên cứu một lần tại một loại nhà, giữ mãi kể cả khi nhà bị phá).
 // atk/def: cộng chỉ số theo loại quân; load: cộng mỗi chuyến theo tài nguyên; farmAmt: cộng trữ lượng mỗi Ruộng lúa; upgrade: đổi loại quân.
 // req: phải nghiên cứu xong nâng cấp này trước (cây kỹ thuật mở khóa dần).
-const INF = ['club', 'axe', 'sword', 'pike'], ARC = ['archer', 'archer2'], CAV = ['scout', 'cav', 'hcav', 'chariot'];
+const INF = ['club', 'axe', 'sword', 'pike'], ARC = ['archer', 'archer2', 'carcher'], CAV = ['scout', 'cav', 'hcav', 'chariot'];
 const MELEE = [...INF, ...CAV];
 const each = (ids, v) => Object.fromEntries(ids.map(id => [id, v]));
 const TECHS = {
@@ -89,6 +93,15 @@ const TECHS = {
   wood2: { name: 'Cưa đồng', icon: '🪚', at: 'market', age: 3, req: 'wood', cost: { food: 150, wood: 100 }, turns: 3, load: { wood: 3 }, desc: '+3 Gỗ mỗi chuyến nữa' },
   stone2: { name: 'Đục đồng', icon: '⛏️', at: 'market', age: 3, req: 'stone', cost: { food: 150, wood: 80 }, turns: 3, load: { stone: 3 }, desc: '+3 Đá mỗi chuyến nữa' },
   gold2: { name: 'Đào sâu', icon: '🪙', at: 'market', age: 3, req: 'gold', cost: { food: 180, wood: 120 }, turns: 3, load: { gold: 3 }, desc: '+3 Vàng mỗi chuyến nữa' },
+  wheel: { name: 'Bánh xe', icon: '☸️', at: 'market', age: 3, cost: { food: 175, wood: 75 }, turns: 3, mp: { vil: 1 }, desc: '+1 Di chuyển trên bản đồ: Dân làng. Mở khóa Xe chiến' },
+  // Học viện (Đời 3): các nâng cấp Government Center của AoE1
+  nobility: { name: 'Quý tộc', icon: '👑', at: 'academy', age: 3, cost: { food: 175, gold: 120 }, turns: 3, hpMul: each([...CAV, 'carcher'], 1.15), desc: 'Máu ×1,15: Ngựa dò, Kỵ binh, Kỵ binh nặng, Xe chiến, Xe cung (cả quân đang có)' },
+  architecture: { name: 'Kiến trúc', icon: '📐', at: 'academy', age: 3, cost: { food: 150, wood: 175 }, turns: 3, buildMul: 1.5, bldHpMul: 1.2, desc: 'Dân xây nhanh ×1,5; mọi công trình và Nhà chính Máu ×1,2 (cả nhà đang có)' },
+  logistics: { name: 'Hậu cần', icon: '📦', at: 'academy', age: 3, cost: { food: 180, gold: 100 }, turns: 3, halfPop: ['club', 'axe', 'sword'], desc: 'Lính chùy, Lính rìu, Kiếm sĩ chỉ chiếm nửa chỗ dân số' },
+  // Đền (Đời 3): các nâng cấp Đời Đồng của Temple AoE1, chỉ cho Thầy tu
+  mysticism: { name: 'Huyền học', icon: '🔮', at: 'temple', age: 3, cost: { gold: 120 }, turns: 2, hpMul: { priest: 2 }, desc: 'Thầy tu Máu ×2 (8 → 16)' },
+  astrology: { name: 'Chiêm tinh', icon: '✨', at: 'temple', age: 3, cost: { gold: 150 }, turns: 2, convMul: 1.3, heal: { priest: 1 }, desc: 'Thầy tu cải đạo dễ hơn (×1,3: 25% → 33%), hồi máu cho đạo 2 → 3' },
+  polytheism: { name: 'Đa thần', icon: '🗿', at: 'temple', age: 3, cost: { gold: 120 }, turns: 2, mp: { priest: 1 }, bmp: { priest: 1 }, desc: 'Thầy tu +1 Di chuyển (trên bản đồ và trong trận)' },
 };
 // ---------- Đế chế (theo dữ liệu AoE1 Rise of Rome, xem phong-van/2026-11-19-ke-hoach-de-che.md) ----------
 // bonus: lợi thế có tác dụng — kind 'cost': giá các quân trong `units` nhân `mul` (làm tròn).
@@ -109,9 +122,9 @@ const CIVS = {
       { kind: 'farmAmt', pct: 1, txt: 'Ruộng lúa chứa gấp đôi Thức ăn' },
       { kind: 'hp', units: ['vil'], mul: 1.6, txt: 'Dân làng Máu ×1,6 (6 → 10)' },
     ],
-    ban: ['cav', 'hcav', 'archer2', 'arrow'],
-    banTxt: 'Không có Kỵ binh, Kỵ binh nặng, Cung đồng (nên cũng không có Mũi tên đồng)',
-    later: ['Quân công thành đánh nhanh hơn (game chưa có công thành)', 'Không có: Balista, Helepolis, Legion, Cataphract, voi, thuyền chiến lớn, một số công nghệ Đời Đồ Sắt'],
+    ban: ['cav', 'hcav', 'archer2', 'arrow', 'astrology'],
+    banTxt: 'Không có Kỵ binh, Kỵ binh nặng, Cung đồng (nên cũng không có Mũi tên đồng), Chiêm tinh',
+    later: ['Quân công thành đánh nhanh hơn (game chưa có công thành)', 'Không có: Jihad, Afterlife, Monotheism, Fanaticism, Balista, Helepolis, Legion, Cataphract, voi, thuyền chiến lớn, một số công nghệ Đời Đồ Sắt'],
   },
   yamato: {
     name: 'Yamato', arch: 'Châu Á', desc: 'Quân Chuồng ngựa rẻ, dân làng đi nhanh.',
@@ -119,36 +132,37 @@ const CIVS = {
       { kind: 'cost', units: Object.keys(UNITS).filter(id => UNITS[id].at === 'stable'), mul: 0.75, txt: 'Mọi quân Chuồng ngựa (Ngựa dò, Kỵ binh, Kỵ binh nặng) rẻ hơn 25%' },
       { kind: 'mp', units: ['vil'], add: 1, txt: 'Dân làng +1 Di chuyển (2 → 3)' },
     ],
-    ban: ['chariot', 'yoke'],
-    banTxt: 'Không có Xe chiến (nên cũng không có Ách đồng)',
-    later: ['Thuyền Máu +30% (game chưa có Thuyền)', 'Không có: Tháp canh nâng cấp, Thầy tu nâng cao, Broad Sword, Long Sword, Legion, voi, lạc đà, máy bắn đá lớn'],
+    ban: ['chariot', 'yoke', 'mysticism', 'astrology'],
+    banTxt: 'Không có Xe chiến (nên cũng không có Ách đồng), Huyền học, Chiêm tinh',
+    later: ['Thuyền Máu +30% (game chưa có Thuyền)', 'Không có: Tháp canh nâng cấp, Monotheism, Fanaticism, Jihad, Medicine, Martyrdom, Broad Sword, Long Sword, Legion, voi, lạc đà, máy bắn đá lớn'],
   },
   roman: {
     name: 'Roman', arch: 'La Mã', desc: 'Công trình rẻ, Kiếm sĩ đánh mạnh.',
     bonus: [
-      { kind: 'bcost', blds: ['house', 'granary', 'storage', 'barracks', 'market', 'farm', 'range', 'stable', 'pikehall'], mul: 0.85, txt: 'Mọi công trình rẻ hơn 15%' },
+      { kind: 'bcost', blds: ['house', 'granary', 'storage', 'barracks', 'market', 'farm', 'range', 'stable', 'pikehall', 'academy', 'temple'], mul: 0.85, txt: 'Mọi công trình rẻ hơn 15%' },
       { kind: 'atk', units: ['sword'], mul: 1.2, txt: 'Kiếm sĩ +20% Công (5 → 6)' },
     ],
-    ban: ['hcav'],
-    banTxt: 'Không có Ngựa chiến (Kỵ binh nặng)',
-    later: ['Tháp canh rẻ hơn 50% (game chưa có Tháp)', 'Không có: Composite Bow, Irrigation, Cataphract, voi, lạc đà, kỵ cung, xe cung, một số công nghệ Đền và Đời Đồ Sắt'],
+    ban: ['hcav', 'carcher', 'astrology'],
+    banTxt: 'Không có Ngựa chiến (Kỵ binh nặng), Xe cung, Chiêm tinh',
+    later: ['Tháp canh rẻ hơn 50% (game chưa có Tháp)', 'Không có: Composite Bow, Irrigation, Cataphract, voi, lạc đà, kỵ cung, Afterlife, một số công nghệ Đời Đồ Sắt'],
   },
   greek: {
     name: 'Greek', arch: 'Hy Lạp', desc: 'Lính trường thương cơ động.',
     bonus: [{ kind: 'mp', units: ['pike'], add: 1, txt: 'Lính trường thương +1 Di chuyển (2 → 3)' }],
-    ban: ['archer2', 'arrow', 'chariot', 'yoke'],
-    banTxt: 'Không có Cung đồng, Mũi tên đồng, Xe chiến, Ách đồng',
-    later: ['Thuyền chiến chạy nhanh hơn (game chưa có Thuyền)', 'Không có: Composite Bow, Broad Sword, Long Sword, Legion, Metallurgy, Cataphract, voi, lạc đà, kỵ cung, xe cung, một số công nghệ Đền'],
+    ban: ['archer2', 'arrow', 'chariot', 'yoke', 'carcher'],
+    banTxt: 'Không có Cung đồng, Mũi tên đồng, Xe chiến, Ách đồng, Xe cung',
+    later: ['Thuyền chiến chạy nhanh hơn (game chưa có Thuyền)', 'Không có: Composite Bow, Broad Sword, Long Sword, Legion, Metallurgy, Cataphract, voi, lạc đà, kỵ cung, Monotheism, Jihad, Martyrdom'],
   },
   egyptian: {
     name: 'Egyptian', arch: 'Ai Cập', desc: 'Khai thác Vàng giỏi, Xe chiến bền.',
     bonus: [
+      { kind: 'brange', units: ['priest'], add: 1, txt: 'Thầy tu cải đạo xa hơn: Tầm trong trận +1 (3 → 4)' }, { kind: 'vision', units: ['priest'], add: 1, txt: 'Thầy tu +1 Tầm nhìn (3 → 4)' },
       { kind: 'load', res: ['gold'], pct: 0.4, txt: 'Dân đào Vàng +40% mỗi chuyến (10 → 14): mang nhiều hơn và đào nhanh hơn' }, // AoE1: mang +2 (+20%) và tốc độ làm việc +0.2 (+20%), gộp vào mỗi chuyến
-      { kind: 'hp', units: ['chariot'], mul: 1.33, txt: 'Xe chiến Máu ×1,33 (18 → 24)' },
+      { kind: 'hp', units: ['chariot', 'carcher'], mul: 1.33, txt: 'Xe chiến, Xe cung Máu ×1,33 (18 → 24, 14 → 19)' },
     ],
     ban: ['cav', 'hcav'],
     banTxt: 'Không có Kỵ binh, Kỵ binh nặng',
-    later: ['Thầy tu bắn xa và nhìn xa hơn (game chưa có Thầy tu)', 'Không có: Coinage, Siege Craft, Bronze Shield, Broad Sword, Long Sword, Phalanx, Legion, máy bắn đá lớn, Balista, Helepolis, kỵ cung'],
+    later: ['Không có: Coinage, Siege Craft, Bronze Shield, Broad Sword, Long Sword, Phalanx, Legion, máy bắn đá lớn, Balista, Helepolis, kỵ cung'],
   },
   palmyra: {
     name: 'Palmyra', arch: 'La Mã', desc: 'Dân làng đắt nhưng giỏi việc, có giáp.',
@@ -158,8 +172,9 @@ const CIVS = {
       { kind: 'def', units: ['vil'], add: 1, txt: 'Dân làng +1 Thủ (0 → 1)' },
       { kind: 'defArc', units: ['vil'], add: 1, txt: 'Dân làng +1 Giáp tên (chặn sát thương Cung thủ)' },
     ],
-    ban: [],
-    later: ['Cống nạp không mất phí (game chưa có Cống nạp)', 'Lạc đà chạy nhanh hơn 25% (game chưa có Lạc đà)', 'Không có: Plow, Irrigation, Craftsmanship, Coinage, Long Sword, Legion, Centurion, Metallurgy, Cataphract, công nghệ Đền, thuyền lớn'],
+    ban: ['mysticism', 'polytheism'],
+    banTxt: 'Không có Huyền học, Đa thần',
+    later: ['Cống nạp không mất phí (game chưa có Cống nạp)', 'Lạc đà chạy nhanh hơn 25% (game chưa có Lạc đà)', 'Không có: Plow, Irrigation, Craftsmanship, Coinage, Long Sword, Legion, Centurion, Metallurgy, Cataphract, Monotheism, Medicine, Martyrdom, thuyền lớn'],
   },
   minoan: {
     name: 'Minoan', arch: 'Hy Lạp', desc: 'Ruộng lúa bền, Cung thủ đồng bắn xa.',
@@ -168,37 +183,37 @@ const CIVS = {
       { kind: 'brange', units: ['archer2'], add: 1, txt: 'Cung thủ đồng +1 Tầm trong trận (3 → 4)' },
       { kind: 'vision', units: ['archer2'], add: 1, txt: 'Cung thủ đồng +1 Tầm nhìn (3 → 4)' },
     ],
-    ban: ['hcav', 'chariot', 'yoke'],
-    banTxt: 'Không có Ngựa chiến (Kỵ binh nặng), Xe chiến, Ách đồng',
-    later: ['Mọi thuyền rẻ hơn 30% (game chưa có Thuyền)', 'Không có: Tháp canh nâng cấp, Fortifications, Legion, Cataphract, voi, kỵ cung, xe cung, công nghệ Đền'],
+    ban: ['hcav', 'chariot', 'yoke', 'carcher', 'mysticism', 'astrology'],
+    banTxt: 'Không có Ngựa chiến (Kỵ binh nặng), Xe chiến, Ách đồng, Xe cung, Huyền học, Chiêm tinh',
+    later: ['Mọi thuyền rẻ hơn 30% (game chưa có Thuyền)', 'Không có: Tháp canh nâng cấp, Fortifications, Legion, Cataphract, voi, kỵ cung, Afterlife, Monotheism, Fanaticism, Jihad, Martyrdom'],
   },
   hittite: {
     name: 'Hittite', arch: 'Babylon', desc: 'Cung thủ đánh mạnh.',
-    bonus: [{ kind: 'atk', units: ['archer', 'archer2'], add: 1, txt: 'Cung thủ +1 Công (3 → 4)' }],
-    ban: ['archer2', 'arrow', 'hcav'],
-    banTxt: 'Không có Cung đồng, Mũi tên đồng, Ngựa chiến (Kỵ binh nặng)',
-    later: ['Quân công thành Máu ×2 (game chưa có công thành)', 'Thuyền chiến bắn xa, nhìn xa +4 (game chưa có Thuyền)', 'Không có: Long Sword, Legion, Cataphract, Balista, Helepolis, Slinger, Medicine, công nghệ Đền, thuyền'],
+    bonus: [{ kind: 'atk', units: ['archer', 'archer2', 'carcher'], add: 1, txt: 'Cung thủ, Xe cung +1 Công (3 → 4)' }],
+    ban: ['archer2', 'arrow', 'hcav', 'mysticism', 'polytheism'],
+    banTxt: 'Không có Cung đồng, Mũi tên đồng, Ngựa chiến (Kỵ binh nặng), Huyền học, Đa thần',
+    later: ['Quân công thành Máu ×2 (game chưa có công thành)', 'Thuyền chiến bắn xa, nhìn xa +4 (game chưa có Thuyền)', 'Không có: Long Sword, Legion, Cataphract, Balista, Helepolis, Slinger, Afterlife, Monotheism, Fanaticism, Jihad, Medicine, Martyrdom, thuyền'],
   },
   phoenician: {
     name: 'Phoenician', arch: 'Hy Lạp', desc: 'Đốn gỗ giỏi.',
     bonus: [{ kind: 'load', res: ['wood'], pct: 0.5, txt: 'Dân đốn Gỗ +50% mỗi chuyến (10 → 15): mang nhiều hơn và đốn nhanh hơn' }], // AoE1: mang +3 (+30%) và tốc độ làm việc +0.2 (+20%)
-    ban: ['hcav'],
-    banTxt: 'Không có Ngựa chiến (Kỵ binh nặng)',
-    later: ['Voi chiến, Voi bắn cung rẻ hơn 25% (game chưa có Voi)', 'Thuyền bắn đá đánh nhanh hơn (game chưa có Thuyền)', 'Không có: Architecture, Chain Mail, Metallurgy, Siege Craft, máy bắn đá lớn, Balista, Helepolis, Cataphract, kỵ cung'],
+    ban: ['hcav', 'architecture'],
+    banTxt: 'Không có Ngựa chiến (Kỵ binh nặng), Kiến trúc',
+    later: ['Voi chiến, Voi bắn cung rẻ hơn 25% (game chưa có Voi)', 'Thuyền bắn đá đánh nhanh hơn (game chưa có Thuyền)', 'Không có: Chain Mail, Metallurgy, Siege Craft, máy bắn đá lớn, Balista, Helepolis, Cataphract, kỵ cung'],
   },
   persian: {
     name: 'Persian', arch: 'Babylon', desc: 'Săn bắn giỏi.',
     bonus: [{ kind: 'load', res: ['meat'], pct: 0.6, txt: 'Dân săn thịt (hươu, voi) +60% mỗi chuyến (10 → 16): mang nhiều hơn và làm nhanh hơn' }], // AoE1 Hunter: mang +3 (+30%), tốc độ làm việc +0.3 (+30%)
-    ban: ['pike', 'pikehall', 'chariot', 'yoke', 'wood2'],
-    banTxt: 'Không có Trại trường thương (Lính trường thương), Xe chiến, Ách đồng, Cưa đồng',
-    later: ['Voi chiến, Voi bắn cung chạy nhanh hơn (game chưa có Voi)', 'Trireme đánh nhanh hơn (game chưa có Thuyền)', 'Không có: Plow, Wheel, Craftsmanship, Coinage, Siege Craft, Aristocracy, Balista, Helepolis, máy bắn đá lớn'],
+    ban: ['pike', 'pikehall', 'chariot', 'yoke', 'wood2', 'wheel', 'carcher'],
+    banTxt: 'Không có Trại trường thương (Lính trường thương), Xe chiến, Ách đồng, Cưa đồng, Bánh xe, Xe cung',
+    later: ['Voi chiến, Voi bắn cung chạy nhanh hơn (game chưa có Voi)', 'Trireme đánh nhanh hơn (game chưa có Thuyền)', 'Không có: Plow, Craftsmanship, Coinage, Siege Craft, Aristocracy, Balista, Helepolis, máy bắn đá lớn'],
   },
   carthage: {
     name: 'Carthage', arch: 'La Mã', desc: 'Lính trường thương bền.',
     bonus: [{ kind: 'hp', units: ['pike'], mul: 1.25, txt: 'Lính trường thương Máu ×1,25 (15 → 19)' }],
-    ban: ['chariot', 'yoke'],
-    banTxt: 'Không có Xe chiến, Ách đồng',
-    later: ['Voi chiến, Voi bắn cung Máu ×1,25 (game chưa có Voi)', 'Thuyền vận tải nhanh hơn, Fire Galley đánh mạnh hơn (game chưa có Thuyền)', 'Không có: Fortifications, Chain Mail, Metallurgy, Siege Craft, Composite Bow, Legion, Cataphract, máy bắn đá lớn, công nghệ Đền'],
+    ban: ['chariot', 'yoke', 'astrology'],
+    banTxt: 'Không có Xe chiến, Ách đồng, Chiêm tinh',
+    later: ['Voi chiến, Voi bắn cung Máu ×1,25 (game chưa có Voi)', 'Thuyền vận tải nhanh hơn, Fire Galley đánh mạnh hơn (game chưa có Thuyền)', 'Không có: Fortifications, Chain Mail, Metallurgy, Siege Craft, Composite Bow, Legion, Cataphract, máy bắn đá lớn, Monotheism, Fanaticism'],
   },
   macedonian: {
     name: 'Macedonian', arch: 'La Mã', desc: 'Lính trường thương có Giáp tên, quân nhìn xa.',
@@ -206,33 +221,33 @@ const CIVS = {
       { kind: 'defArc', units: ['pike'], add: 2, txt: 'Lính trường thương +2 Giáp tên (chặn sát thương Cung thủ)' },
       { kind: 'vision', units: ['vil', 'club', 'axe', 'sword', 'pike', 'cav', 'hcav'], add: 1, txt: 'Dân làng, bộ binh, Kỵ binh +1 Tầm nhìn' },
     ],
-    ban: ['chariot', 'yoke'],
-    banTxt: 'Không có Xe chiến, Ách đồng',
-    later: ['Quân công thành rẻ hơn 50% (game chưa có công thành)', 'Thuyền đánh cá, buôn, vận tải nhìn xa +2 (game chưa có Thuyền)', 'Không có: Đền và mọi công nghệ Đền, Wheel, Nobility, Engineering, Craftsmanship, Siege Craft, Fortifications, Long Sword, Legion, máy bắn đá lớn'],
+    ban: ['chariot', 'yoke', 'nobility', 'wheel', 'carcher', 'temple', 'priest', 'mysticism', 'astrology', 'polytheism'],
+    banTxt: 'Không có Xe chiến, Ách đồng, Quý tộc, Bánh xe, Xe cung, Đền (Thầy tu)',
+    later: ['Quân công thành rẻ hơn 50% (game chưa có công thành)', 'Thuyền đánh cá, buôn, vận tải nhìn xa +2 (game chưa có Thuyền)', 'Không có: Engineering, Craftsmanship, Siege Craft, Fortifications, Long Sword, Legion, máy bắn đá lớn'],
   },
   babylonian: {
     name: 'Babylonian', arch: 'Babylon', desc: 'Khai thác Đá giỏi.',
-    bonus: [{ kind: 'load', res: ['stone'], pct: 0.5, txt: 'Dân đào Đá +50% mỗi chuyến (10 → 15): mang nhiều hơn và đào nhanh hơn' }], // AoE1 Stone Miner: mang +3 (+30%), tốc độ làm việc +0.2 (+20%)
+    bonus: [{ kind: 'load', res: ['stone'], pct: 0.5, txt: 'Dân đào Đá +50% mỗi chuyến (10 → 15): mang nhiều hơn và đào nhanh hơn' }, { kind: 'faith', add: -1, txt: 'Thầy tu hồi sức nhanh: 1 lượt thay vì 2' }], // AoE1 Stone Miner: mang +3 (+30%), tốc độ làm việc +0.2 (+20%)
     ban: ['hcav'],
     banTxt: 'Không có Ngựa chiến (Kỵ binh nặng)',
-    later: ['Tường, Tháp canh Máu ×2 (game chưa có Tường, Tháp)', 'Thầy tu hồi sức nhanh hơn (game chưa có Thầy tu)', 'Không có: Chain Mail, Metallurgy, Phalanx, Tower Shield, Iron Shield, Cataphract, voi, Balista, Helepolis, thuyền lớn'],
+    later: ['Tường, Tháp canh Máu ×2 (game chưa có Tường, Tháp)', 'Không có: Chain Mail, Metallurgy, Phalanx, Tower Shield, Iron Shield, Cataphract, voi, Balista, Helepolis, thuyền lớn'],
   },
   assyrian: {
     name: 'Assyrian', arch: 'Ai Cập', desc: 'Cung thủ bắn nhanh, dân làng đi nhanh.',
     bonus: [
-      { kind: 'atk', units: ['archer', 'archer2'], mul: 1.27, txt: 'Cung thủ +27% Công (3 → 4)' }, // AoE1: thời gian giữa 2 đòn 1.4 → 1.1
+      { kind: 'atk', units: ['archer', 'archer2', 'carcher'], mul: 1.27, txt: 'Cung thủ, Xe cung +27% Công (3 → 4)' }, // AoE1: thời gian giữa 2 đòn 1.4 → 1.1
       { kind: 'mp', units: ['vil'], add: 1, txt: 'Dân làng +1 Di chuyển (2 → 3)' },
     ],
-    ban: ['archer2', 'arrow', 'yoke'],
-    banTxt: 'Không có Cung đồng, Mũi tên đồng, Ách đồng',
-    later: ['Kỵ cung, Xe cung bắn nhanh hơn (game chưa có)', 'Không có: Architecture, Alchemy, Engineering, Nobility, Aristocracy, Chain Mail, Bronze Shield, Phalanx, Slinger, voi, thuyền lớn'],
+    ban: ['archer2', 'arrow', 'yoke', 'architecture', 'nobility'],
+    banTxt: 'Không có Cung đồng, Mũi tên đồng, Ách đồng, Kiến trúc, Quý tộc',
+    later: ['Kỵ cung bắn nhanh hơn (game chưa có Kỵ cung)', 'Không có: Alchemy, Engineering, Aristocracy, Chain Mail, Bronze Shield, Phalanx, Slinger, voi, thuyền lớn'],
   },
   choson: {
     name: 'Choson', arch: 'Châu Á', desc: 'Kiếm sĩ rất bền.',
-    bonus: [{ kind: 'hp', units: ['sword'], mul: 1.5, txt: 'Kiếm sĩ Máu ×1,5 (15 → 23)' }], // AoE1: Long Swordsman, Legion Máu +80 (×2); áp cho Kiếm sĩ, giảm còn ×1,5 vì Kiếm sĩ của game rẻ (chốt 2026-11-19)
-    ban: ['chariot', 'yoke'],
-    banTxt: 'Không có Xe chiến, Ách đồng',
-    later: ['Thầy tu rẻ hơn 32% (game chưa có Thầy tu)', 'Tháp canh bắn xa, nhìn xa +2 (game chưa có Tháp)', 'Không có: Composite Bow, Chain Mail, Phalanx, Engineering, Nobility, Aristocracy, Alchemy, Iron Shield, Tower Shield, voi, lạc đà, máy bắn đá lớn'],
+    bonus: [{ kind: 'hp', units: ['sword'], mul: 1.5, txt: 'Kiếm sĩ Máu ×1,5 (15 → 23)' }, { kind: 'cost', units: ['priest'], mul: 0.68, txt: 'Thầy tu rẻ hơn 32% (🪙125 → 🪙85)' }], // AoE1: Long Swordsman, Legion Máu +80 (×2); áp cho Kiếm sĩ, giảm còn ×1,5 vì Kiếm sĩ của game rẻ (chốt 2026-11-19)
+    ban: ['chariot', 'yoke', 'nobility'],
+    banTxt: 'Không có Xe chiến, Ách đồng, Quý tộc',
+    later: ['Tháp canh bắn xa, nhìn xa +2 (game chưa có Tháp)', 'Không có: Composite Bow, Chain Mail, Phalanx, Engineering, Aristocracy, Alchemy, Iron Shield, Tower Shield, voi, lạc đà, máy bắn đá lớn'],
   },
 };
 const CIV_PICK = ['shang', 'sumerian', 'yamato', 'roman', 'greek', 'egyptian', 'palmyra', 'minoan', 'hittite', 'phoenician', 'persian', 'carthage', 'macedonian', 'babylonian', 'assyrian', 'choson']; // các đế chế đã làm, chọn được ở Ván mới
@@ -254,13 +269,14 @@ const civBanned = (p, id) => civOf(p).ban.includes(id);
 function unitHp(p, id) { // Máu tối đa của loại quân sau bonus đế chế
   let hp = UNITS[id].hp;
   for (const b of civOf(p).bonus) if (b.kind === 'hp' && b.units.includes(id)) hp = Math.round(hp * (b.mul || 1)) + (b.add || 0);
+  if (p && p.tech) for (const t in p.tech) { const m = TECHS[t] && TECHS[t].hpMul; if (m && m[id]) hp = Math.round(hp * m[id]); } // Quý tộc
   return hp;
 }
 const maxHp = x => unitHp(G.players[x.owner], x.type); // x: quân trên bản đồ hoặc quân cờ trong trận
 const civMpAdd = (p, id) => civOf(p).bonus.reduce((a, b) => a + (b.kind === 'mp' && b.units.includes(id) ? b.add : 0), 0);
-const unitMp = (p, id) => UNITS[id].mp + civMpAdd(p, id); // Di chuyển tối đa trên bản đồ
+const unitMp = (p, id) => UNITS[id].mp + civMpAdd(p, id) + techSum(p, 'mp', id); // Di chuyển tối đa trên bản đồ (Bánh xe: dân +1)
 const maxMp = x => unitMp(G.players[x.owner], x.type);
-const bmpOf = x => UNITS[x.type].bmp + civMpAdd(G.players[x.owner], x.type); // Di chuyển trong trận
+const bmpOf = x => UNITS[x.type].bmp + civMpAdd(G.players[x.owner], x.type) + techSum(G.players[x.owner], 'bmp', x.type); // Di chuyển trong trận (Đa thần: Thầy tu +1)
 // thêm mỗi chuyến theo tỉ lệ của mức gốc. keys: loại việc — 'food'/'wood'/'gold'/'stone' (mỏ), thêm 'meat' (thịt hươu, voi)
 // hoặc 'berry' (quả) cho Thức ăn; 'farm' (Ruộng lúa, gốc FARM_LOAD). Mỗi bonus tính một lần nếu khớp bất kỳ key nào.
 function civLoad(p, ...keys) {
@@ -675,7 +691,7 @@ const armyAt = (i, owner) => G.units.filter(u => u.i === i && !isVil(u) && (owne
 // Đoàn dân: các dân cùng phe đứng chung một ô (tối đa bằng số dân mỗi ô mỏ), đi và làm việc cùng nhau như một đạo
 const vilsAt = (i, owner) => G.units.filter(u => u.i === i && isVil(u) && (owner == null || u.owner === owner));
 const groupAt = u => (isVil(u) ? vilsAt : armyAt)(u.i, u.owner);
-const TRAINS = { barracks: ['club'], range: ['archer'], stable: ['scout', 'cav', 'chariot'], pikehall: ['pike'] }; // dòng quân gốc; quân thật = lineOf()
+const TRAINS = { barracks: ['club'], range: ['archer', 'carcher'], stable: ['scout', 'cav', 'chariot'], pikehall: ['pike'], temple: ['priest'] }; // dòng quân gốc; quân thật = lineOf()
 const ust = u => UNITS[u.type];
 // ---------- Nâng cấp: hiệu ứng ----------
 const hasTech = (p, id) => !!(p && p.tech && p.tech[id]);
@@ -684,6 +700,13 @@ function techSum(p, key, sub) { // cộng dồn hiệu ứng `key` (atk/def/load
   if (p && p.tech) for (const id in p.tech) { const e = TECHS[id] && TECHS[id][key]; if (e && e[sub]) s += e[sub]; }
   return s;
 }
+function techMul(p, key) { // nhân dồn hệ số `key` (buildMul, bldHpMul) của các nâng cấp đã có
+  let m = 1;
+  if (p && p.tech) for (const id in p.tech) { const v = TECHS[id] && TECHS[id][key]; if (typeof v === 'number') m *= v; }
+  return m;
+}
+const halfPopOf = (p, id) => !!(p && p.tech && Object.keys(p.tech).some(t => TECHS[t] && TECHS[t].halfPop && TECHS[t].halfPop.includes(id))); // Hậu cần
+const progTxt = b => `${Math.floor(b.prog * 10) / 10}/${b.need}`; // tiến độ xây (Kiến trúc cho số lẻ)
 const atkBonus = x => techSum(G.players[x.owner], 'atk', x.type) + civAtk(G.players[x.owner], x.type); // x: quân trên bản đồ hoặc quân cờ trong trận (đều có owner, type)
 const defBonus = x => techSum(G.players[x.owner], 'def', x.type) + civDef(G.players[x.owner], x.type);
 const atkOf = x => UNITS[x.type].atk + atkBonus(x);
@@ -691,7 +714,9 @@ const defOf = x => UNITS[x.type].def + defBonus(x);
 const withBonus = (v, b) => (b ? `${v + b} (+${b})` : `${v}`); // "4 (+1)"
 const farmAmtOf = p => Math.round(FARM_AMT * (1 + civFarmPct(p))) + (hasTech(p, 'farm') ? TECHS.farm.farmAmt : 0);
 // Quân một nhà đang bán: bản nâng cấp mới nhất của từng dòng (Nhà lính bán Lính rìu thay Lính chùy sau khi có Rìu đồng…)
-const trainList = (p, bid) => (TRAINS[bid] || []).filter(id => UNITS[id].age <= p.age).map(id => lineOf(p, id)).filter(id => !civBanned(p, id));
+const trainShow = (p, bid) => (TRAINS[bid] || []).filter(id => UNITS[id].age <= p.age).map(id => lineOf(p, id)).filter(id => !civBanned(p, id)); // hiện ở nhà (kể cả còn khóa vì thiếu nâng cấp)
+const unitLocked = (p, id) => !!(UNITS[id].tech && !hasTech(p, UNITS[id].tech)); // quân cần nâng cấp mở khóa (Xe chiến cần Bánh xe)
+const trainList = (p, bid) => trainShow(p, bid).filter(id => !unitLocked(p, id));
 const techQueued = (p, id) => bldOf(p).some(b => b.queue.some(x => x.kind === 'tech' && x.id === id));
 const myUnits = pid => G.units.filter(u => u.owner === pid);
 const bldOf = p => Object.values(G.bld).filter(b => b.owner === p.id);
@@ -721,10 +746,11 @@ function canSee(pid, u) {
 // ---------- Dân số, khai thác, công trình ----------
 const popCap = p => Math.min(POP_MAX, CFG.pop.base + CFG.pop.perHouse * countBld(p, 'house', true));
 function popUsed(p) {
-  let n = myUnits(p.id).length;
-  n += p.city.queue.filter(x => x.kind === 'unit').length;
-  for (const b of bldOf(p)) n += b.queue.filter(x => x.kind === 'unit').length; // nghiên cứu không tốn chỗ dân số
-  return n;
+  const ids = [...myUnits(p.id).map(u => u.type), ...p.city.queue.filter(x => x.kind === 'unit').map(x => x.id)];
+  for (const b of bldOf(p)) ids.push(...b.queue.filter(x => x.kind === 'unit').map(x => x.id)); // nghiên cứu không tốn chỗ dân số
+  let n = 0, half = 0;
+  for (const id of ids) if (halfPopOf(p, id)) half++; else n++;
+  return n + Math.ceil(half / 2); // Hậu cần: bộ binh Nhà lính chiếm nửa chỗ
 }
 const nextAge = p => AGE_UP[p.age + 1] || null; // thông tin lên đời kế tiếp, null nếu đã ở đời cao nhất
 const ageReq = p => { const a = nextAge(p); return a ? a.req.filter(id => countBld(p, id, true) > 0).length : 0; };
@@ -767,6 +793,29 @@ function incomeEst(p) { // ước tính thu nhập mỗi lượt
   return inc;
 }
 
+// ---------- Thầy tu ----------
+const PRIEST_HEAL = 2, FAITH_REST = 2, CONV_CHANCE = 0.25; // hồi máu cho đạo mỗi lượt · số lượt hồi sức sau khi cải đạo · tỉ lệ cải đạo mỗi lần thử
+const isPriest = x => UNITS[x.type].cls === 'priest';
+const priestReady = u => !(u.faithAt > G.turn); // u: quân trên bản đồ; hết đức tin thì phải chờ tới lượt faithAt
+const faithRest = p => Math.max(0, FAITH_REST + civOf(p).bonus.reduce((a, b) => a + (b.kind === 'faith' ? b.add : 0), 0)); // Babylonian: 1 lượt
+function convChance(a, d) { // a: Thầy tu, d: quân bị cải đạo (quân cờ trong trận)
+  let c = CONV_CHANCE * techMul(G.players[a.owner], 'convMul'); // Chiêm tinh ×1,3
+  if (civOf(G.players[d.owner]) === CIVS.macedonian) c /= 4; // AoE1 Rise of Rome: quân Macedonian khó cải đạo gấp 4
+  return Math.min(0.95, c);
+}
+function spawnSpot(from) { // ô trống gần `from` nhất (cho quân bị cải đạo khi đạo đã đầy)
+  const seen = new Set([from]), q = [from];
+  while (q.length) {
+    const i = q.shift();
+    for (const n of NB[i]) {
+      if (seen.has(n) || !isFinite(TERRAIN[G.t[n]].cost) || cityAt(n)) continue;
+      seen.add(n);
+      if (!unitAt(n) && !G.bld[n]) return n;
+      q.push(n);
+    }
+  }
+  return from;
+}
 function spawn(p, type, from) { // tìm ô trống gần `from` nhất
   const seen = new Set([from]), q = [from];
   while (q.length) {
@@ -803,7 +852,8 @@ function startBuild(p, u, id, tile) {
   const d = BUILDINGS[id];
   if (!u || !isVil(u) || d.age > p.age || (d.req && !countBld(p, d.req, true)) || !canAfford(p, bldCost(p, id)) || !buildSites(p, id).includes(tile)) return false;
   pay(p, bldCost(p, id));
-  G.bld[tile] = { tile, owner: p.id, id, hp: Math.ceil(d.hp / 2), max: d.hp, prog: 0, need: d.turns, done: false, queue: [], amt: id === 'farm' ? farmAmtOf(p) : 0 };
+  const max = Math.round(d.hp * techMul(p, 'bldHpMul')); // Kiến trúc
+  G.bld[tile] = { tile, owner: p.id, id, hp: Math.ceil(max / 2), max, prog: 0, need: d.turns, done: false, queue: [], amt: id === 'farm' ? farmAmtOf(p) : 0 };
   u.build = tile; u.goto = null;
   return true;
 }
@@ -835,7 +885,15 @@ function research(p, where, id) {
 }
 function finishTech(p, id) {
   const t = TECHS[id];
+  const hpBefore = t.hpMul ? Object.fromEntries(Object.keys(t.hpMul).map(k => [k, unitHp(p, k)])) : null;
   p.tech = p.tech || {}; p.tech[id] = true;
+  if (hpBefore) for (const u of myUnits(p.id)) if (u.type in hpBefore) u.hp += unitHp(p, u.type) - hpBefore[u.type]; // Quý tộc: quân đang có được cộng phần Máu tăng thêm
+  if (t.bldHpMul) { // Kiến trúc: công trình đang có (cả đang xây) và Nhà chính
+    for (const b of [...bldOf(p), p.city]) {
+      const k = b === p.city ? 'maxHp' : 'max', old = b[k];
+      b[k] = Math.round(old * t.bldHpMul); b.hp += b[k] - old;
+    }
+  }
   if (t.farmAmt) for (const b of bldOf(p)) if (b.id === 'farm') b.amt += t.farmAmt; // ruộng đang có cũng được cộng
   if (t.upgrade) {
     const [from, to] = t.upgrade, gain = unitHp(p, to) - unitHp(p, from);
@@ -899,7 +957,7 @@ function economy(p) {
     if (b.done) continue;
     const workers = G.units.filter(u => u.owner === p.id && u.build === b.tile && D(u.i, b.tile) <= 1).length;
     if (!workers) continue;
-    b.prog = Math.min(b.need, b.prog + workers); // mỗi dân đứng kề góp 1 lượt công
+    b.prog = Math.min(b.need, b.prog + workers * techMul(p, 'buildMul')); // mỗi dân đứng kề góp 1 lượt công (Kiến trúc: 1,5)
     if (b.prog >= b.need) {
       b.done = true; b.hp = b.max;
       for (const u of G.units) if (u.build === b.tile) u.build = null;
@@ -913,7 +971,7 @@ function economy(p) {
     if (it.kind === 'age') {
       const n = ageOfItem(it), a = AGE_UP[n];
       p.age = n; c.terr = within(c.i, a.rad).filter(j => j !== c.i); q.queue.shift();
-      if (a.cityHp) { c.maxHp += a.cityHp; c.hp += a.cityHp; }
+      if (a.cityHp) { const add = Math.round(a.cityHp * techMul(p, 'bldHpMul')); c.maxHp += add; c.hp += add; }
       log(me ? `Bạn đã tiến lên ${a.name}! Lãnh thổ mở rộng${a.cityHp ? `, Nhà chính +${a.cityHp} Máu` : ''}; mở ${ageUnlockNames(n)}.` : `Địch đã tiến lên ${a.name}!`, me ? 'good' : 'bad');
       if (me) ageBanner(n);
     } else if (it.kind === 'tech') {
@@ -1181,7 +1239,8 @@ function rangeOf(u, full) {
 function dmgCore(att, dType, df, k, rand) { // att: quân đánh (có type, owner); dType = null khi mục tiêu là công trình; df đã gồm Thủ từ nâng cấp
   const a = UNITS[att.type], d = dType && UNITS[dType]; let m = 1;
   if (d) {
-    if (a.cls === 'spear' && (d.cls === 'cav' || d.cls === 'chariot')) m = 2;
+    if (d.cls === 'priest' && (att.type === 'chariot' || att.type === 'carcher')) m = 1.5; // Xe chiến, Xe cung khắc Thầy tu (như AoE1)
+    else if (a.cls === 'spear' && (d.cls === 'cav' || d.cls === 'chariot')) m = 2;
     else if (a.cls === 'cav' && d.cls === 'archer') m = 1.5;
     else if (a.range === 1 && d.cls === 'archer') m = 1.25;
   } else if (a.siege) m = a.siege; // Kiếm sĩ phá công trình nhanh hơn
@@ -1251,9 +1310,12 @@ function groupAttack(grp, tgt) { // cả đạo đánh dân làng / công trình
   }
 }
 function refreshUnits(pid) {
+  const healers = G.units.filter(u => u.owner === pid && isPriest(u) && !u.attacked); // Thầy tu không đánh trong lượt: hồi máu cho đạo cùng ô
+  const heal = PRIEST_HEAL + techSum(G.players[pid], 'heal', 'priest');
   for (const u of G.units) if (u.owner === pid) {
     const s = ust(u);
     if (!u.moved && !u.attacked && u.hp < maxHp(u)) u.hp = Math.min(maxHp(u), u.hp + 2);
+    if (!u.attacked && u.hp < maxHp(u) && healers.some(h => h.i === u.i && h !== u)) u.hp = Math.min(maxHp(u), u.hp + heal); // một đạo chỉ tính 1 Thầy tu; Thầy tu không tự hồi cho mình
     u.mp = maxMp(u); u.moved = false; u.attacked = false; u.speared = false;
   }
 }
@@ -1314,9 +1376,18 @@ function aiResearch(p, mil, vills) { // mỗi lượt bắt đầu tối đa 1 n
     ['yoke', n('chariot') >= 2],
     ...armor.map(id => [armor3[id], true]),
     ['gold2', vills.some(v => aiResOf(p, v) === 'gold')],
+    ['wheel', vills.length >= 10 || countBld(p, 'range', true) + countBld(p, 'stable', true) > 0],
     ['arrow', cntArc >= 2],
     ['wood2', true],
     ['stone2', true],
+    // Học viện: Hậu cần khi đông bộ binh, Quý tộc khi đông kỵ binh, Kiến trúc sau cùng
+    ['logistics', cntInf >= 4],
+    ['nobility', cntCav >= 3],
+    ['architecture', true],
+    // Đền: Huyền học, Đa thần khi đã có Thầy tu; Chiêm tinh khi có từ 2
+    ['mysticism', n('priest') >= 1],
+    ['polytheism', n('priest') >= 1],
+    ['astrology', n('priest') >= 2],
   ];
   const reserve = unitCost(p, inf);
   for (const [id, cond] of order) {
@@ -1350,6 +1421,9 @@ function aiPickBuilding(p, vills) {
     if (!any('stable') && wood >= 150) { const s = near(2); if (s) return ['stable', s.tile]; }
   }
   if (p.age >= 3 && !any('pikehall') && !civBanned(p, 'pikehall') && wood >= 200) { const s = near(2); if (s) return ['pikehall', s.tile]; }
+  if (p.age >= 3 && !any('market') && wood >= 350 && p.res.stone >= 100) { const s = near(2); if (s) return ['market', s.tile]; } // cần Chợ để xây Học viện
+  if (p.age >= 3 && !any('temple') && !civBanned(p, 'temple') && countBld(p, 'market', true) && countBld(p, 'barracks', true) + countBld(p, 'range', true) + countBld(p, 'stable', true) >= 2 && wood >= 200 && p.res.gold >= 250) { const s = near(2); if (s) return ['temple', s.tile]; }
+  if (p.age >= 3 && !any('academy') && !civBanned(p, 'academy') && countBld(p, 'market', true) && ['barracks', 'range', 'stable', 'pikehall'].filter(id => countBld(p, id, true)).length >= 2 && wood >= 200 && p.res.stone >= 100) { const s = near(2); if (s) return ['academy', s.tile]; }
   if (any('storage') < 4 && wood >= 150) { const s = aiDropSite(p, 'storage'); if (s && s.score >= 3) return ['storage', s.tile]; }
   if (any('granary') < 3 && wood >= 150) { const s = aiDropSite(p, 'granary'); if (s && s.score >= 2) return ['granary', s.tile]; }
   if (any('barracks') < 3 && (wood >= 400 || (p.res.food > 600 && wood >= 120))) { const s = near(2); if (s) return ['barracks', s.tile]; }
@@ -1408,7 +1482,7 @@ function aiEconomy(p) {
   let queued = bldOf(p).reduce((a, b) => a + b.queue.filter(x => x.kind === 'unit').length, 0);
   const wantMil = Math.min(22, 2 + Math.floor(G.turn / 6));
   for (const b of bldOf(p)) {
-    if (!b.done || b.queue.length || !['barracks', 'range', 'stable', 'pikehall'].includes(b.id)) continue;
+    if (!b.done || b.queue.length || !['barracks', 'range', 'stable', 'pikehall', 'temple'].includes(b.id)) continue;
     if (!threat && (mil.length + queued >= wantMil || (saving && p.res.food < ageFood + 100))) break;
     const n = t => mil.filter(u => u.type === t).length;
     const inf = lineOf(p, 'club'), arc = lineOf(p, 'archer'), cav = lineOf(p, 'cav');
@@ -1417,10 +1491,12 @@ function aiEconomy(p) {
     // Lính trường thương: mua khi thấy Kỵ binh / Xe chiến địch, hoặc giữ khoảng 1/4 quân là trường thương
     const foeCav = G.units.filter(u => u.owner !== p.id && ['cav', 'chariot'].includes(UNITS[u.type].cls) && canSee(p.id, u)).length;
     if (b.id === 'pikehall' && n('pike') >= foeCav && n('pike') * 4 > mil.length + 2) continue;
-    const stableId = !civBanned(p, 'chariot') && (civBanned(p, cav) || (p.age >= 3 && (foeArc >= 2 || p.res.gold < (unitCost(p, cav).gold || 0) + 30))) ? 'chariot' : cav;
+    const stableId = !civBanned(p, 'chariot') && !unitLocked(p, 'chariot') && (civBanned(p, cav) || (p.age >= 3 && (foeArc >= 2 || p.res.gold < (unitCost(p, cav).gold || 0) + 30))) ? 'chariot' : cav;
     if (b.id === 'stable' && p.age < 3 && n('scout') >= 2) continue; // Đời 2: Chuồng ngựa chỉ có Ngựa dò, giữ 2 con để dò và quấy
-    const id = b.id === 'range' ? arc : b.id === 'stable' ? (p.age < 3 ? 'scout' : stableId) : b.id === 'pikehall' ? 'pike' : inf;
-    if (b.id === 'range' && n(arc) * 3 > mil.length + 2) continue;
+    const arcId = trainList(p, 'range').includes('carcher') && n('carcher') < n(arc) ? 'carcher' : arc; // có Bánh xe: xen Xe cung với Cung thủ
+    if (b.id === 'temple' && (mil.length < 3 || n('priest') >= Math.ceil(mil.length / 5) || p.res.gold < 150)) continue; // khoảng 1 Thầy tu cho 5 lính
+    const id = b.id === 'temple' ? 'priest' : b.id === 'range' ? arcId : b.id === 'stable' ? (p.age < 3 ? 'scout' : stableId) : b.id === 'pikehall' ? 'pike' : inf;
+    if (b.id === 'range' && (n(arc) + n('carcher')) * 3 > mil.length + 2) continue;
     if (train(p, b.tile, id)) queued++;
   }
   // Xây dựng: 1–2 công trường cùng lúc
@@ -1787,7 +1863,7 @@ function tipHtml(i) {
   if (c) h = `<b>Nhà chính ${c.id ? 'địch' : 'của bạn'}</b>` + (me.visible[i] || !c.id ? `<br>Máu ${c.city.hp}/${c.city.maxHp}` : '');
   if (b) {
     h += `<br>${BUILDINGS[b.id].ico} <b>${BUILDINGS[b.id].name}</b> của ${b.owner ? 'địch' : 'bạn'} · Máu ${b.hp}/${b.max}`;
-    if (!b.done) h += `<br><span class="warn">Đang xây ${b.prog}/${b.need} lượt${b.owner === 0 && !G.units.some(u => u.build === i) ? ' — chưa có dân xây (chọn dân rồi bấm vào đây)' : ''}</span>`;
+    if (!b.done) h += `<br><span class="warn">Đang xây ${progTxt(b)} lượt${b.owner === 0 && !G.units.some(u => u.build === i) ? ' — chưa có dân xây (chọn dân rồi bấm vào đây)' : ''}</span>`;
     if (!b.done && b.owner === 0) h += `<br><span class="muted">👷 ${G.units.filter(u => u.build === i).length} dân đang xây · chọn thêm dân rồi bấm vào đây để xây nhanh hơn</span>`;
     if (b.id === 'farm' && b.done) h += `<br>Còn ${b.amt} ${resIco('food')}`;
   } else if (G.t[i] === EMPTY && terrOf(me).has(i)) h +=`<br><span class="muted">Có thể đặt công trình tại đây</span>`;
@@ -1847,9 +1923,9 @@ function queueProgressHtml(where, q) {
 function trainOptsHtml(p, where, q, opts) {
   const full = popUsed(p) >= popCap(p), qfull = q.queue.length >= QUEUE_MAX;
   return '<div class="tgrid">' + opts.map(id => {
-    const d = UNITS[id], cost = unitCost(p, id), n = q.queue.filter(x => x.kind === 'unit' && x.id === id).length, poor = !canAfford(p, cost);
+    const d = UNITS[id], cost = unitCost(p, id), n = q.queue.filter(x => x.kind === 'unit' && x.id === id).length, lock = unitLocked(p, id), poor = lock || !canAfford(p, cost);
     const st = `❤${unitHp(p, id)} · ⚔${withBonus(d.atk, techSum(p, 'atk', id) + civAtk(p, id))} · 🛡${withBonus(d.def, techSum(p, 'def', id) + civDef(p, id))} · ${unitMp(p, id)} MP${d.range > 1 ? ` · tầm ${d.range}` : ''}`;
-    const note = full ? '⚠ Hết chỗ dân số — xây thêm Nhà dân' : qfull ? `Hàng chờ đã đầy (${QUEUE_MAX})` : poor ? '⚠ Chưa đủ tài nguyên' : n ? `Đang chờ ${n} — bấm để xếp thêm` : 'Bấm để mua';
+    const note = lock ? `🔒 Cần nghiên cứu ${TECHS[d.tech].name} (${BUILDINGS[TECHS[d.tech].at].name})` : full ? '⚠ Hết chỗ dân số — xây thêm Nhà dân' : qfull ? `Hàng chờ đã đầy (${QUEUE_MAX})` : poor ? '⚠ Chưa đủ tài nguyên' : n ? `Đang chờ ${n} — bấm để xếp thêm` : 'Bấm để mua';
     const cut = JSON.stringify(cost) !== JSON.stringify(d.cost) ? ` <s class="muted">${costStr(d.cost)}</s> <span class="muted">(${civOf(p).name})</span>` : '';
     const tip = `<b>${d.name}</b><br>${costStr(cost)}${cut} · ${d.turns} lượt<br>${st}<br>${d.desc}<br><i>${note}</i>`;
     return `<span class="tt-w" data-tt="${attrEsc(tip)}"><button class="tic unit${poor || full || qfull ? ' poor' : ' ready'}" data-act="train:${where}:${id}" ${!poor && !full && !qfull ? '' : 'disabled'}>${bigIco('units/' + id)}${n ? `<b class="qn">×${n}</b>` : ''}</button></span>`;
@@ -1865,7 +1941,7 @@ function techState(p, id) {
   if (t.req && !hasTech(p, t.req)) return { locked: true, txt: '🔒 Cần ' + TECHS[t.req].name };
   return { txt: '' };
 }
-const techCat = t => (t.at === 'market' ? 'eco' : t.at === 'storage' ? 'arm' : 'mil'); // màu nền ô: kinh tế / giáp & rèn / quân sự
+const techCat = t => (t.at === 'market' || t.at === 'academy' ? 'eco' : t.at === 'storage' ? 'arm' : 'mil'); // màu nền ô: kinh tế / giáp & rèn / quân sự
 function techOptsHtml(p, where, b) { // bảng của một nhà: chia theo đời, hiện cả nâng cấp còn khóa kèm lý do
   let h = '';
   for (const age of [2, 3]) {
@@ -1883,7 +1959,7 @@ function techOptsHtml(p, where, b) { // bảng của một nhà: chia theo đờ
   return h ? `<div class="tages">${h}</div>` : '';
 }
 // Cây kỹ thuật: mỗi nhà một khối; mỗi hàng là một nhánh (nâng cấp gốc → nâng cấp nó mở khóa), cột theo đời
-const TECH_AT = ['barracks', 'range', 'stable', 'storage', 'market'];
+const TECH_AT = ['barracks', 'range', 'stable', 'storage', 'market', 'academy', 'temple'];
 function techNode(p, id, has) {
   const t = TECHS[id], st = techState(p, id);
   const cls = st.done ? 'done' : st.busy ? 'busy' : st.locked ? 'locked' : canAfford(p, t.cost) ? 'ready' : 'poor';
@@ -1906,8 +1982,9 @@ function techTabHtml(p) {
   return h;
 }
 function unitStatus(p, u) {
+  if (isPriest(u) && !priestReady(u)) return `🙏 hồi sức, cải đạo lại được từ lượt ${u.faithAt}`;
   if (!isVil(u)) return u.goto != null ? '🚩 đang hành quân' : u.attacked ? '⚪ đã đánh' : u.mp > 0 ? `🟢 còn ${u.mp} MP` : '⚪ hết MP';
-  if (u.build != null && G.bld[u.build]) { const b = G.bld[u.build]; return `🔨 xây ${BUILDINGS[b.id].name} ${b.prog}/${b.need}${D(u.i, u.build) > 1 ? ' (đang tới)' : ''}`; }
+  if (u.build != null && G.bld[u.build]) { const b = G.bld[u.build]; return `🔨 xây ${BUILDINGS[b.id].name} ${progTxt(b)}${D(u.i, u.build) > 1 ? ' (đang tới)' : ''}`; }
   if (u.goto != null) return '🚩 đang di chuyển';
   if (u.attacked) return '⚪ đã đánh lượt này';
   if (liveElephant(u.i)) return `🗡 đang săn voi (voi còn ${eleHp(u.i)}/${ELEPHANT_HP} Máu)`;
@@ -2002,9 +2079,9 @@ function renderUI() {
     // Đang chọn một nhà: chỉ hiện quân mua ở nhà này, hàng chờ mua và nâng cấp của nhà này (ẩn tab tổng quan và nhật ký)
     const isCity = selB === 'city', b = isCity ? null : G.bld[selB], d = isCity ? null : BUILDINGS[b.id];
     const where = isCity ? 'city' : b.tile, q = isCity ? c : b;
-    const trains = isCity ? ['vil'] : b.done && TRAINS[b.id] ? trainList(me, b.id) : [];
+    const trains = isCity ? ['vil'] : b.done && TRAINS[b.id] ? trainShow(me, b.id) : [];
     h += `<div class="card ctx"><div class="row"><h3>${isCity ? '🏠 Nhà chính' : `${d.ico} ${d.name}`}</h3><button class="btn sm" data-act="unselb" title="Bỏ chọn (Esc)">✖ Đóng</button></div>
-      <div class="row"><span>Máu ${isCity ? `${c.hp}/${c.maxHp}` : `${b.hp}/${b.max}`}</span><span>${isCity ? `Dân số ${popUsed(me)}/${popCap(me)}` : b.done ? 'Hoạt động' : `Đang xây ${b.prog}/${b.need}`}</span></div>
+      <div class="row"><span>Máu ${isCity ? `${c.hp}/${c.maxHp}` : `${b.hp}/${b.max}`}</span><span>${isCity ? `Dân số ${popUsed(me)}/${popCap(me)}` : b.done ? 'Hoạt động' : `Đang xây ${progTxt(b)}`}</span></div>
       ${isCity ? '' : `<div class="muted">${d.desc}${b.id === 'farm' && b.done ? ` · còn ${b.amt} ${resIco('food')}` : ''}</div>`}</div>`;
     if (!isCity && !b.done) {
       const n = G.units.filter(u => u.build === b.tile).length;
@@ -2166,7 +2243,7 @@ ${[2, 3].map(n => { const a = AGE_UP[n]; return `      <li>Lên ${a.name} tại 
     <h2>Quân đội</h2><ul>
       <li>Nhà lính: Lính chùy (Đời 1), Lính rìu (Đời 2), Kiếm sĩ (Đời 3) · Trường bắn cung: Cung thủ, Cung thủ đồng · Chuồng ngựa: Ngựa dò (Đời 2), Kỵ binh, Kỵ binh nặng, Xe chiến (Đời 3) · Trại trường thương (Đời 3, 200 Gỗ): Lính trường thương. Mỗi công trình huấn luyện 1 đơn vị một lúc, xếp hàng chờ được tối đa ${QUEUE_MAX} mục (Nhà chính xếp được nhiều dân liên tiếp).</li>
       <li>Tầm nhìn: Nhà chính 2 ô, công trình 1 ô, dân làng 1 ô, lính 2 ô, Kỵ binh 3 ô, Ngựa dò 4 ô. Muốn thấy xa phải cho đơn vị đi dò.</li>
-      <li><b>Đời 3 · Đồ Đồng:</b> Kiếm đồng biến Lính rìu thành Kiếm sĩ (x1.5 lên công trình), Cung đồng: Cung thủ → Cung thủ đồng, Chuồng ngựa bắt đầu bán Kỵ binh; Ngựa chiến: Kỵ binh → Kỵ binh nặng. Nâng cấp xong thì mọi quân cũ cùng loại đổi ngay (giữ phần Máu đã mất) và nhà chỉ bán quân mới. Chuồng ngựa bán thêm Xe chiến (không tốn Vàng, +2 Giáp tên nên chịu tên tốt). Xây Trại trường thương để mua Lính trường thương, quân khắc Kỵ binh.</li>
+      <li><b>Đời 3 · Đồ Đồng:</b> Kiếm đồng biến Lính rìu thành Kiếm sĩ (x1.5 lên công trình), Cung đồng: Cung thủ → Cung thủ đồng, Chuồng ngựa bắt đầu bán Kỵ binh; Ngựa chiến: Kỵ binh → Kỵ binh nặng. Nâng cấp xong thì mọi quân cũ cùng loại đổi ngay (giữ phần Máu đã mất) và nhà chỉ bán quân mới. Chuồng ngựa bán thêm Xe chiến (không tốn Vàng, +2 Giáp tên nên chịu tên tốt). Xây Trại trường thương để mua Lính trường thương, quân khắc Kỵ binh. Học viện (🪵200 🪨100, cần Chợ) không bán quân, nghiên cứu Quý tộc (kỵ binh, Xe chiến Máu ×1,15), Kiến trúc (xây nhanh ×1,5, công trình Máu ×1,2), Hậu cần (Lính chùy, rìu, Kiếm sĩ chiếm nửa chỗ dân số). Đền (🪵200, cần Chợ) bán Thầy tu (🪙125): không đánh, trong trận cải đạo quân địch trong tầm 3 ô (25% mỗi lần thử, thành công thì nghỉ hồi sức 2 lượt); đạo có Thầy tu không đánh trong lượt thì mỗi lính hồi thêm 2 Máu. Nâng cấp ở Đền: Huyền học (Máu ×2, 8 → 16), Chiêm tinh (cải đạo ×1,3, hồi máu +1), Đa thần (+1 Di chuyển).</li>
       <li>Rê chuột lên một đạo quân để thấy nhãn ⚔+N 🛡+N: phần Công / Thủ đang được cộng nhờ nâng cấp.</li>
       <li>Lính trường thương x2 lên Kỵ binh và Xe chiến · Xe chiến +2 Giáp tên · Kỵ binh, Ngựa dò x1.5 lên Cung thủ · Cung thủ bắn xa 3 ô trong trận (không bắn xuyên Đá tảng; đứng trên Đồi +1 sát thương; tên bỏ qua Thủ và nâng cấp giáp, chỉ Giáp tên chặn được — Giáp tên có ở Xe chiến (2), Lính trường thương Macedonian (2) và dân Palmyra (1); địa hình vẫn che chắn), yếu khi bị áp sát.</li>
       <li><b>Đạo quân:</b> tối đa ${ARMY_MAX} lính đứng chung một ô. Đi lính vào ô có lính mình để nhập đạo; bấm ô là chọn cả đạo; cả đạo đi theo quân chậm nhất.</li>
@@ -2293,7 +2370,7 @@ function newBattle(att, def) {
     const col = side === 0 ? (ranged ? 0 : 1) : (ranged ? BCOLS - 1 : BCOLS - 2);
     pieces.push({ u: x, owner: x.owner, side, type: x.type, cell: row * BCOLS + col, hp: x.hp, max: maxHp(x), mp: 0, defend: false, moved: false, alive: true });
   }));
-  return { pieces, terr, round: 1, order: [], oi: -1, cur: null, reach: new Map(), targets: new Map(), phase: 'ai', auto: false, sim: false, log: [], fl: [], fx: [], hover: -1, result: null, done: null };
+  return { hex: [att[0].i, def[0].i], pieces, terr, round: 1, order: [], oi: -1, cur: null, reach: new Map(), targets: new Map(), phase: 'ai', auto: false, sim: false, log: [], fl: [], fx: [], hover: -1, result: null, done: null };
 }
 // Đánh tự động: máy điều khiển cả hai bên theo đúng luật bàn cờ, trả kết quả ngay
 function simBattle(att, def) {
@@ -2403,10 +2480,12 @@ function bReach(p) {
   for (const i of [...best.keys()]) if (bPieceAt(i)) best.delete(i);
   return best;
 }
-function bTargets(p, rc) { // quân địch -> {d, pos, cost}
-  const out = new Map(), R = bRange(p);
+const bCanConvert = p => isPriest(p) && !p.spent && (!p.u || priestReady(p.u)); // Thầy tu còn đức tin
+function bTargets(p, rc) { // quân địch -> {d, pos, cost}; Thầy tu: quân cải đạo được
+  const out = new Map(), R = bRange(p), priest = isPriest(p);
+  if (priest && !bCanConvert(p)) return out;
   for (const d of B.pieces) {
-    if (!d.alive || d.side === p.side) continue;
+    if (!d.alive || d.side === p.side || (priest && isPriest(d))) continue; // không cải đạo được Thầy tu (AoE1 cần Độc thần)
     let pos = -1, cost = Infinity, pd = -1;
     const consider = (i, c) => { const ds = BG.dist(i, d.cell); if (ds <= R && bLos(i, d.cell) && (ds > pd || (ds === pd && c < cost))) { pos = i; cost = c; pd = ds; } };
     consider(p.cell, 0);
@@ -2417,6 +2496,7 @@ function bTargets(p, rc) { // quân địch -> {d, pos, cost}
 }
 function bDmg(a, d, k, rand) { return dmgCore(a, d.type, defVs(a, d) + BT[B.terr[d.cell]].def + (d.defend ? 2 : 0), k, rand) + (bHillShot(a) ? 1 : 0); }
 function bRet(a, d, dist, rand) {
+  if (UNITS[d.type].atk <= 0 || isPriest(a)) return 0; // Thầy tu không phản đòn; cải đạo không bị phản đòn
   if (dist === 1) return bDmg(d, a, UNITS[d.type].cls === 'archer' ? 0.4 : 0.6, rand);
   return bRange(d) >= dist && bLos(d.cell, a.cell) ? bDmg(d, a, 0.5, rand) : 0;
 }
@@ -2440,8 +2520,24 @@ function bCounter(a, d, dist) { // trả về sát thương phản đòn (0 nế
   B.log.push({ msg: `↩ ${bName(d)} phản đòn ${bName(a)} (-${r})${kill ? ' — tử trận!' : '.'}`, cls: d.owner ? 'bad' : 'good' });
   return r;
 }
-function bAttack(a, d) { bCounter(a, d, bHit(a, d)); } // tính ngay (trận tự động không xem)
+// Cải đạo: thử một lần với tỉ lệ convChance; thất bại không mất gì, thành công thì quân đó đổi phe và Thầy tu hết đức tin
+function bConvert(a, d) {
+  const ok = Math.random() < convChance(a, d), t0 = performance.now(), who = bName(d);
+  B.fx.push({ from: a.cell, to: d.cell, color: '#c9a7ff', t0, ranged: true });
+  if (!ok) {
+    B.fl.push({ cell: d.cell, text: '✨ không theo', color: '#c9a7ff', t0, big: true });
+    B.log.push({ msg: `${bName(a)} cải đạo ${who} — không thành.`, cls: 'info' });
+    return false;
+  }
+  d.side = a.side; d.owner = a.owner; d.conv = true; d.defend = false; a.spent = true;
+  if (a.u) a.u.faithAt = G.turn + faithRest(G.players[a.owner]) + 1; // hồi sức: hết trận này và faithRest lượt sau
+  B.fl.push({ cell: d.cell, text: '✨ Cải đạo!', color: '#e2c7ff', t0, big: true });
+  B.log.push({ msg: `${bName(a)} cải đạo ${who} — thành công! Nó theo phe ${a.owner ? 'địch' : 'ta'}.`, cls: a.owner ? 'bad' : 'good' });
+  return true;
+}
+function bAttack(a, d) { if (isPriest(a)) bConvert(a, d); else bCounter(a, d, bHit(a, d)); } // tính ngay (trận tự động không xem)
 async function bAttackAnim(a, d) {
+  if (isPriest(a)) { bConvert(a, d); renderBattleUI(); await bWait(1000); return; }
   const dist = bHit(a, d); renderBattleUI();
   await bWait(1000); if (!B || B.phase === 'done') return;
   if (bCounter(a, d, dist)) { renderBattleUI(); await bWait(1000); }
@@ -2462,6 +2558,7 @@ function bPos(p) { // vị trí vẽ: trượt từ ô cũ sang ô mới
 // trừ ô đi tới được, ô Đá tảng và ô có quân cùng phe; bắn xa không xuyên qua Đá tảng
 function bAtkZone(p, rc) {
   const out = new Set(), R = bRange(p);
+  if (isPriest(p) && !bCanConvert(p)) return out; // Thầy tu đang hồi sức: không có tầm cải đạo
   for (let i = 0; i < BG.n; i++) {
     if (i === p.cell || rc.has(i) || !isFinite(BT[B.terr[i]].cost)) continue;
     const o = bPieceAt(i); if (o && o.side === p.side) continue;
@@ -2489,8 +2586,26 @@ function bAdvance() {
   B.undo = { cell: p.cell, mp: p.mp }; // chỗ đứng đầu lượt: cho phép đi lại khi chưa đánh
   return true;
 }
+function bAiPriest(p, rc, tgs) { // Thầy tu: cải đạo quân đáng giá nhất trong tầm; hết đức tin thì lùi xa địch, nép sau quân mình
+  let best = null, bv = -1;
+  for (const t of tgs.values()) {
+    const worth = Object.values(UNITS[t.d.type].cost).reduce((a, b) => a + b, 0) + t.d.hp * 5;
+    const v = worth * convChance(p, t.d) - t.cost;
+    if (v > bv) { bv = v; best = t; }
+  }
+  if (best) { p.cell = best.pos; return best.d; }
+  const foes = B.pieces.filter(x => x.alive && x.side !== p.side), allies = B.pieces.filter(x => x.alive && x.side === p.side && x !== p), R = bRange(p), ready = bCanConvert(p);
+  const metric = c => {
+    const fd = Math.min(...foes.map(f => BG.dist(c, f.cell))), ad = allies.length ? Math.min(...allies.map(a => BG.dist(c, a.cell))) : 0;
+    return (ready ? Math.abs(fd - R) : -fd) * 10 + ad * 3 - BT[B.terr[c]].def;
+  };
+  let to = -1, bm = metric(p.cell);
+  for (const c of rc.keys()) { const m = metric(c); if (m < bm) { bm = m; to = c; } }
+  if (to >= 0) p.cell = to; else p.defend = true;
+}
 function bAiCore(p) { // máy đi một lượt cho quân p
   const rc = bReach(p), tgs = bTargets(p, rc); let best = null, bs = 0;
+  if (isPriest(p)) return bAiPriest(p, rc, tgs);
   for (const t of tgs.values()) {
     const dmg = bDmg(p, t.d, 1, false), ret = bRet(p, t.d, BG.dist(t.pos, t.d.cell), false);
     const s = dmg * 2 + (dmg >= t.d.hp ? 8 : 0) - ret * 1.5 - (ret >= p.hp ? 10 : 0);
@@ -2551,13 +2666,20 @@ function bFinish(kind) { // 0: bên công thắng · 1: bên thủ thắng · -1
   for (const p of B.pieces) {
     if (!p.alive) { lost[p.owner]++; if (G.units.includes(p.u)) killUnit(p.u); continue; }
     p.u.hp = p.hp;
+    if (p.conv) { // bị cải đạo: đổi chủ, nhập đạo của bên mới (đạo đầy thì đứng ô trống gần nhất)
+      const u = p.u, hex = B.hex[p.side];
+      u.owner = p.owner; u.goto = null; u.build = null; u.rest = false; delete u.faithAt;
+      u.hp = Math.min(u.hp, maxHp(u));
+      u.i = G.units.filter(x => x !== u && x.i === hex && x.owner === u.owner && !isVil(x)).length < ARMY_MAX ? hex : spawnSpot(hex);
+    }
     if (p.side === 0) { p.u.attacked = true; p.u.mp = 0; p.u.moved = true; p.u.goto = null; } // đạo tấn công hết lượt, đứng nguyên chỗ
   }
   for (const pl of G.players) updateVision(pl);
   const winner = kind === 0 || kind === 1 ? B.pieces.find(p => p.side === kind).owner : -1;
   const head = kind === 'retreat' ? 'Bạn đã ra lệnh rút lui.' : kind === -1 ? `Hết ${BMAXR} hiệp — hai bên thu quân.`
-    : winner === 0 ? '🏆 Thắng trận! Đạo địch đã bị tiêu diệt.' : '💀 Bại trận. Đạo quân của ta đã bị tiêu diệt.';
-  B.result = `${head} Ta mất ${lost[0]}, địch mất ${lost[1]} đơn vị.`;
+    : winner === 0 ? '🏆 Thắng trận! Đạo địch đã bị đánh tan.' : '💀 Bại trận. Đạo quân của ta đã bị tiêu diệt.';
+  const nConv = [0, 1].map(o => B.pieces.filter(p => p.conv && p.owner === o).length);
+  B.result = `${head} Ta mất ${lost[0]}, địch mất ${lost[1]} đơn vị.${nConv[0] ? ` ✨ Ta cải đạo được ${nConv[0]} quân địch.` : ''}${nConv[1] ? ` ✨ Địch cải đạo ${nConv[1]} quân của ta.` : ''}`;
   log(`Trận đánh${B.sim ? ' (tự động)' : ''}: ${B.result}`, winner === 0 ? 'good' : winner === 1 ? 'bad' : 'info');
   select(null); renderUI(); renderBattleUI();
 }
@@ -2571,7 +2693,8 @@ function bHoverHtml(cell) {
     if (d !== B.cur && B.phase !== 'done') h += ` · <span class="muted">${d.owner ? 'viền cam: nó đi tới được, đỏ: nó đánh tới được (lượt kế của nó)' : 'nét đứt: tầm của quân này ở lượt kế'}</span>`;
     if (B.phase === 'player' && B.targets.has(d)) {
       const t = B.targets.get(d);
-      h += ` · <span style="color:#ffb37a">⚔ gây ~${bDmg(B.cur, d, 1, false)}, nhận ~${bRet(B.cur, d, BG.dist(t.pos, d.cell), false)}</span>`;
+      h += isPriest(B.cur) ? ` · <span style="color:#d9b8ff">✨ cải đạo: ${Math.round(convChance(B.cur, d) * 100)}% thành công</span>`
+        : ` · <span style="color:#ffb37a">⚔ gây ~${bDmg(B.cur, d, 1, false)}, nhận ~${bRet(B.cur, d, BG.dist(t.pos, d.cell), false)}</span>`;
     }
   }
   return h;
@@ -2591,7 +2714,7 @@ function renderBattleUI() {
       <div class="row"><span>Máu ${p.hp}/${p.max}</span><span>Di chuyển ${p.mp}</span></div>
       <div class="row"><span>Công ${withBonus(s.atk, atkBonus(p))} · Thủ ${withBonus(s.def, defBonus(p))}</span><span>Tầm ${bRange(p)} · Tốc độ ${s.init}</span></div>
       ${mine ? `<div class="legend"><span><i class="lg mv"></i>Tầm đi: ${B.reach.size} ô</span><span><i class="lg atk"></i>Tầm đánh: ${(B.atk || []).size || 0} ô${B.targets.size ? ` · ${B.targets.size} mục tiêu` : ''}</span></div>` : ''}
-      <div class="muted">${mine ? 'Lượt của bạn: bấm ô sáng để di chuyển, bấm địch có vòng đỏ để tấn công. Rê chuột lên quân địch để xem tầm của nó.' : (p.owner ? 'Địch đang hành động…' : 'Quân ta tự hành động…')}</div>
+      <div class="muted">${mine ? (isPriest(p) ? (bCanConvert(p) ? `Thầy tu: bấm quân địch có vòng đỏ để cải đạo (thử một lần, mỗi lần ~${Math.round(CONV_CHANCE * techMul(G.players[p.owner], 'convMul') * 100)}%). Thành công thì quân đó theo phe ta, Thầy tu hồi sức ${faithRest(G.players[p.owner])} lượt.` : '🙏 Thầy tu đang hồi sức: chỉ di chuyển hoặc phòng thủ. Nên lùi ra sau quân mình.') : 'Lượt của bạn: bấm ô sáng để di chuyển, bấm địch có vòng đỏ để tấn công. Rê chuột lên quân địch để xem tầm của nó.') : (p.owner ? 'Địch đang hành động…' : 'Quân ta tự hành động…')}</div>
       ${mine && p.moved ? '<button class="opt" data-act="b:undo">↩ Đi lại (về chỗ đứng đầu lượt, hoàn lại Di chuyển)</button>' : ''}
       <button class="opt" data-act="b:pass" ${mine ? '' : 'disabled'}>🛡️ ${p.moved ? 'Kết thúc lượt đơn vị này' : 'Phòng thủ (+2 Thủ tới lượt sau)'}</button>
       <button class="opt" data-act="b:auto" ${mine ? '' : 'disabled'}>⏩ Tự động đánh nốt trận</button>
