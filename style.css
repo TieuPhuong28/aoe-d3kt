@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 TieuPhuong28. Bảo lưu mọi quyền (All rights reserved). Xem file LICENSE. */
 /* Giao diện kiểu gỗ – đá – da thuộc, viền đồng. Màu chung đặt ở :root để dễ chỉnh. */
 :root {
   --wood-d: #1f150c; --wood: #3a2817; --wood-m: #4a331d; --wood-l: #6b4a29;
@@ -541,6 +542,8 @@ img.ic { width: 1.3em; height: 1.3em; vertical-align: -0.3em; object-fit: contai
 
 /* Huy hiệu đế chế trên thanh trên cùng (viền theo màu phe) */
 #top .stat.civb { border-width: 1px 1px 1px 3px; cursor: help; }
+#top .stat.civb .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+#top .stat.civb.dead { opacity: .45; text-decoration: line-through; }
 
 /* Màn hình Ván mới: mỗi lựa chọn một hàng (nhãn · nút gọn · mô tả lựa chọn đang bật) */
 .modal.menu { max-width: 640px; }
@@ -559,6 +562,7 @@ img.ic { width: 1.3em; height: 1.3em; vertical-align: -0.3em; object-fit: contai
 .ngfoot .spacer { flex: 1; }
 .btn.big { padding: 8px 18px; font-size: 15px; }
 .ngwarn { margin-top: 6px; font-size: 12px; }
+.copyright { margin-top: 10px; font-size: 11px; text-align: center; opacity: .7; }
 @media (max-width: 520px) {
   .ngrow { grid-template-columns: 1fr; gap: 4px; }
   .nglab { padding-top: 0; }
@@ -585,3 +589,24 @@ img.ic { width: 1.3em; height: 1.3em; vertical-align: -0.3em; object-fit: contai
 .bspd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bspd .seg button { padding: 3px 9px; font-size: 13px; }
 @media (max-width: 760px) { .btcols, .btunits { grid-template-columns: 1fr; } }
+
+/* Bảng người chơi ở Ván mới: Người chơi · Đế chế · Màu · Đội */
+.lobby { margin: 6px 0 4px; border: 1px solid rgba(122,90,53,.55); border-radius: 10px; background: rgba(0,0,0,.2); padding: 6px 10px 10px; }
+.lbr { display: grid; grid-template-columns: minmax(120px, 1.1fr) minmax(150px, 2fr) 112px 92px 30px; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid rgba(122,90,53,.3); }
+.lbr.lbh { border-top: 0; padding: 2px 0 4px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.lbr.me .lbn b { color: var(--gold-l); }
+.lbn { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lbn .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.6); flex: none; }
+.lbsel { width: 100%; min-width: 0; padding: 4px 6px; border-radius: 6px; border: 1px solid #6a4e2e; background: linear-gradient(#3a2b1c, #2c2015); color: var(--text); font: 600 13px "Segoe UI", system-ui, sans-serif; cursor: pointer; }
+.lbsel:hover { border-color: var(--gold); }
+.lbsel option { background: #2c2015; color: var(--text); }
+.lbsel.lbcol { border-left-width: 8px; }
+.lbdel { padding: 2px 0; width: 28px; }
+.lbfoot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.lbsum { font-weight: 700; color: var(--text-2); }
+.lbsum.warn { color: #ff9a6a; }
+@media (max-width: 560px) {
+  .lbr { grid-template-columns: 1fr 1fr; }
+  .lbr.lbh { display: none; }
+  .lbn { grid-column: 1 / -1; }
+}

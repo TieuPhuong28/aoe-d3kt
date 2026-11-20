@@ -1,9 +1,10 @@
 'use strict';
-/* Đế chế D3KT — chiến thuật theo lượt trên lưới hex 15x15 (kinh tế: dân làng là quân cờ, khai thác theo chuyến) */
+/* Copyright (c) 2026 TieuPhuong28. Bảo lưu mọi quyền (All rights reserved). Xem file LICENSE. */
+/* Đế chế D3KT —chiến thuật theo lượt trên lưới hex 15×15 / 21×21 / 27×27 (kinh tế: dân làng là quân cờ, khai thác theo chuyến) */
 
 // ---------- Hằng số & dữ liệu ----------
-const N = 15, S = 27, SQ3 = Math.sqrt(3);
-const W = Math.ceil(S * SQ3 * (N + 0.5)) + 12, H = Math.ceil(S * 1.5 * (N - 1) + 2 * S) + 12;
+const S = 27, SQ3 = Math.sqrt(3);
+let N = 15, W = 0, H = 0; // cỡ bản đồ N×N ô và khung vẽ W×H, đặt bởi setMapSize
 const OX = S * SQ3 / 2 + 6, OY = S + 6;
 const PLAINS = 0, FOREST = 1, HILLS = 2, MOUNTAIN = 3, STONE = 4, EMPTY = 5, BERRY = 6, DEER = 7, ELEPHANT = 8, WOODLOT = 9;
 const TERRAIN = [
@@ -61,7 +62,8 @@ const BUILDINGS = {
   range: { name: 'Trường bắn cung', icon: '🎯', cost: { wood: 150 }, turns: 3, hp: 40, age: 2, desc: 'Huấn luyện Cung thủ' },
   stable: { name: 'Chuồng ngựa', icon: '🐴', cost: { wood: 150 }, turns: 3, hp: 40, age: 2, desc: 'Huấn luyện Ngựa dò (Đời 2), Kỵ binh, Xe chiến (Đời 3)' },
   pikehall: { name: 'Trại trường thương', icon: '🔱', cost: { wood: 200 }, turns: 3, hp: 40, age: 3, desc: 'Huấn luyện Lính trường thương (khắc Kỵ binh, Xe chiến)' },
-  academy: { name: 'Học viện', icon: '🏛️', cost: { wood: 200, stone: 100 }, turns: 4, hp: 60, age: 3, req: 'market', desc: 'Nghiên cứu Quý tộc, Kiến trúc, Hậu cần. Không bán quân. Cần đã xây Chợ' },
+  academy: { name: 'Học viện', icon: '🏛️', cost: { wood: 200, stone: 100 }, turns: 4, hp: 60, age: 3, req: 'market', desc: 'Nghiên cứu Quý tộc, Kiến trúc, Hậu cần, Chữ viết. Mở khóa Nhà chính phụ (200 Gỗ). Không bán quân. Cần đã xây Chợ' },
+  towncenter: { name: 'Nhà chính phụ', icon: '🏯', cost: { wood: 200 }, turns: 4, hp: 80, age: 3, req: 'academy', drop: 'all', desc: 'Mở rộng lãnh thổ (bán kính 3), điểm trả mọi tài nguyên, mua Dân làng, tầm nhìn 2. Xây được ngoài lãnh thổ, cách mọi Nhà chính ít nhất 5 ô. Mất Nhà chính gốc thì nhà này lên thay. Cần đã xây Học viện' },
   temple: { name: 'Đền', icon: '⛩️', cost: { wood: 200 }, turns: 3, hp: 50, age: 3, req: 'market', desc: 'Huấn luyện Thầy tu (cải đạo quân địch, hồi máu cho đạo). Cần đã xây Chợ' },
 };
 // Nâng cấp (nghiên cứu một lần tại một loại nhà, giữ mãi kể cả khi nhà bị phá).
@@ -97,6 +99,7 @@ const TECHS = {
   // Học viện (Đời 3): các nâng cấp Government Center của AoE1
   nobility: { name: 'Quý tộc', icon: '👑', at: 'academy', age: 3, cost: { food: 175, gold: 120 }, turns: 3, hpMul: each([...CAV, 'carcher'], 1.15), desc: 'Máu ×1,15: Ngựa dò, Kỵ binh, Kỵ binh nặng, Xe chiến, Xe cung (cả quân đang có)' },
   architecture: { name: 'Kiến trúc', icon: '📐', at: 'academy', age: 3, cost: { food: 150, wood: 175 }, turns: 3, buildMul: 1.5, bldHpMul: 1.2, desc: 'Dân xây nhanh ×1,5; mọi công trình và Nhà chính Máu ×1,2 (cả nhà đang có)' },
+  writing: { name: 'Chữ viết', icon: '📜', at: 'academy', age: 3, cost: { food: 200 }, turns: 2, shareVision: true, desc: 'Chung tầm nhìn với đồng minh: thấy mọi thứ đồng minh đang thấy và toàn bộ vùng đồng minh đã khám phá' },
   logistics: { name: 'Hậu cần', icon: '📦', at: 'academy', age: 3, cost: { food: 180, gold: 100 }, turns: 3, halfPop: ['club', 'axe', 'sword'], desc: 'Lính chùy, Lính rìu, Kiếm sĩ chỉ chiếm nửa chỗ dân số' },
   // Đền (Đời 3): các nâng cấp Đời Đồng của Temple AoE1, chỉ cho Thầy tu
   mysticism: { name: 'Huyền học', icon: '🔮', at: 'temple', age: 3, cost: { gold: 120 }, turns: 2, hpMul: { priest: 2 }, desc: 'Thầy tu Máu ×2 (8 → 16)' },
@@ -472,24 +475,40 @@ const cfgChanged = () => JSON.stringify(CFG) !== JSON.stringify(DEFAULT_CFG);
 // ---------- Hình học hex (odd-r, đỉnh nhọn) ----------
 const idx = (c, r) => r * N + c;
 const AXL = [], CEN = [], NB = [];
-for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-  AXL.push({ q: c - ((r - (r & 1)) >> 1), r });
-  CEN.push({ x: OX + S * SQ3 * (c + 0.5 * (r & 1)), y: OY + S * 1.5 * r });
-}
+let mapUiReady = false, MID = 7, MQ = 8; // mapUiReady: phần giao diện cuối file đã chạy; MID: hàng/cột giữa; MQ: tổng tọa độ q của hai ô đối xứng tâm
 function fromAx(q, r) {
   const c = q + ((r - (r & 1)) >> 1);
   return (c >= 0 && r >= 0 && c < N && r < N) ? idx(c, r) : -1;
 }
-for (let i = 0; i < N * N; i++) {
-  const a = AXL[i];
-  NB.push([[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]].map(d => fromAx(a.q + d[0], a.r + d[1])).filter(j => j >= 0));
+// Cỡ bản đồ chọn ở Ván mới (số ô mỗi cạnh, lẻ để có ô tâm đối xứng)
+const MAP_SIZES = { 15: { name: 'Nhỏ', desc: 'Bản đồ 15×15 như cũ: hai bên gần nhau, đánh nhau sớm.' }, 21: { name: 'Vừa', desc: 'Bản đồ 21×21 (gấp đôi diện tích): nhiều tài nguyên vùng ngoài hơn, đường hành quân dài hơn.' }, 27: { name: 'Lớn', desc: 'Bản đồ 27×27 (hơn 3 lần diện tích): nhiều mỏ và rừng ngoài, phải dò đường xa mới gặp địch.' } };
+function setMapSize(n) { // dựng lại bảng hình học cho bản đồ n×n
+  N = n; W = Math.ceil(S * SQ3 * (N + 0.5)) + 12; H = Math.ceil(S * 1.5 * (N - 1) + 2 * S) + 12;
+  MID = (N - 1) >> 1; MQ = 2 * (MID - ((MID - (MID & 1)) >> 1));
+  AXL.length = 0; CEN.length = 0; NB.length = 0;
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    AXL.push({ q: c - ((r - (r & 1)) >> 1), r });
+    CEN.push({ x: OX + S * SQ3 * (c + 0.5 * (r & 1)), y: OY + S * 1.5 * r });
+  }
+  for (let i = 0; i < N * N; i++) {
+    const a = AXL[i];
+    NB.push([[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]].map(d => fromAx(a.q + d[0], a.r + d[1])).filter(j => j >= 0));
+  }
+  if (mapUiReady) onMapSize(); // khung vẽ và bản đồ con theo cỡ mới (định nghĩa cuối file)
 }
+setMapSize(15);
 function D(i, j) {
   const a = AXL[i], b = AXL[j], dq = a.q - b.q, dr = a.r - b.r;
   return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
 }
-function within(i, rad) { const o = []; for (let j = 0; j < N * N; j++) if (D(i, j) <= rad) o.push(j); return o; }
-const mirror = i => fromAx(8 - AXL[i].q, 14 - AXL[i].r);
+function within(i, rad) { // các ô cách i không quá rad, theo thứ tự chỉ số ô; chỉ duyệt vùng quanh i
+  const a = AXL[i], o = [];
+  for (let dr = -rad; dr <= rad; dr++) for (let dq = Math.max(-rad, -dr - rad); dq <= Math.min(rad, -dr + rad); dq++) {
+    const j = fromAx(a.q + dq, a.r + dr); if (j >= 0) o.push(j);
+  }
+  return o;
+}
+const mirror = i => fromAx(MQ - AXL[i].q, N - 1 - AXL[i].r);
 const rnd = n => Math.floor(Math.random() * n);
 const sleep = ms => window.__fast ? Promise.resolve() : new Promise(r => setTimeout(r, ms));
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
@@ -501,7 +520,7 @@ let focusId = null; // lính đang xem chỉ số trong đạo/đoàn (null = l�
 let G = null, sel = null, selReach = new Map(), selTargets = new Map(), selAtk = new Set(), hoverRange = null, hover = -1, placing = null, selPick = null, selB = null, techOpen = false; // techOpen: cửa sổ cây kỹ thuật đang mở
 const floaters = [];
 
-function genMap(depth = 0) { // depth >= 2: cấu hình quanh nhà không xếp vừa, chấp nhận bản đồ đặt được nhiều nhất có thể
+function genMap(four = false, depth = 0) { // four: 4 góc (3–4 phe) // depth >= 2: cấu hình quanh nhà không xếp vừa, chấp nhận bản đồ đặt được nhiều nhất có thể
   let out = null;
   const H = CFG.home, strict = depth < 2;
   for (let attempt = 0; attempt < 300; attempt++) {
@@ -525,15 +544,22 @@ function genMap(depth = 0) { // depth >= 2: cấu hình quanh nhà không xếp 
         }
       }
     };
-    const ps = idx(3, 11);
+    const off = 3 + Math.round((N - 15) / 6), ps = idx(off, N - 1 - off); // góc dưới trái; bản đồ lớn hơn thì lùi vào trong thêm chút
     used.add(ps);
+    // Vùng gốc được sinh ngẫu nhiên rồi chép sang các vùng khác qua các phép đối xứng (syms):
+    //  2 phe: nửa dưới, chép qua đối xứng tâm; 4 góc: phần tư dưới trái, chép qua lật dọc, đối xứng tâm và lật ngang
+    const vflip = i => idx(i % N, N - 1 - Math.floor(i / N)), hflip = i => mirror(vflip(i));
+    const syms = four ? [vflip, mirror, hflip] : [mirror], symOk = j => syms.every(f => f(j) >= 0);
+    const cx = CEN[idx(MID, MID)].x;
+    const inDom = four ? (i => Math.floor(i / N) > MID && CEN[i].x < cx - 1) : (i => { const r = Math.floor(i / N), c = i % N; return r > MID || (r === MID && c > MID); });
+    const homes = [ps, ...syms.map(f => f(ps))];
     // bãi gỗ nhỏ nằm sát nhà (cách 1–2 ô), thấy ngay từ đầu ván
     const lots = H.woodlotMin + rnd(H.woodlotMax - H.woodlotMin + 1);
-    for (const j of shuffle(within(ps, 2).filter(j => j !== ps && mirror(j) >= 0)).slice(0, lots)) { t[j] = WOODLOT; used.add(j); }
+    for (const j of shuffle(within(ps, 2).filter(j => j !== ps && symOk(j))).slice(0, lots)) { t[j] = WOODLOT; used.add(j); }
     for (const j of NB[ps]) used.add(j); // phần còn lại của vòng sát Nhà chính luôn là Đất trống
     // Trong bán kính 4 ô quanh mỗi Nhà chính luôn có: 2 bãi dâu, 1–2 bãi động vật, 3 cụm Rừng (mỗi cụm 2–3 ô), 1 bãi Vàng, 1 mỏ Đá.
     // Chỉ dùng ô có ô đối xứng (và hàng xóm cũng vậy) để bên địch nhận đúng như thế.
-    const home = within(ps, 4).filter(j => D(ps, j) >= 2 && Math.floor(j / N) > 7 && mirror(j) >= 0 && NB[j].every(k => mirror(k) >= 0));
+    const home = within(ps, 4).filter(j => D(ps, j) >= 2 && inDom(j) && symOk(j) && NB[j].every(symOk));
     const homeFar = home.filter(j => D(ps, j) >= 3);
     place(FOREST, H.forest, H.forestMin, H.forestMax, home);
     place(BERRY, H.berry, 1, 1, homeFar, true, true);
@@ -553,25 +579,23 @@ function genMap(depth = 0) { // depth >= 2: cấu hình quanh nhà không xếp 
       if (cnt(BERRY) !== H.berry || cnt(DEER) + cnt(ELEPHANT) !== animals || clusters !== H.forest || wrongSize
         || cnt(HILLS) < H.gold * H.goldMin || cnt(HILLS) > H.gold * H.goldMax || cnt(STONE) !== H.stone || within(ps, 2).filter(j => t[j] === WOODLOT).length !== lots) continue;
     }
-    const half = []; for (let i = 0; i < N * N; i++) { const r = Math.floor(i / N), c = i % N; if ((r > 7 || (r === 7 && c > 7)) && D(i, ps) > 4) half.push(i); }
-    // tài nguyên ở vùng ngoài (cách cả hai Nhà chính ít nhất 5 ô): phải đi dò mới thấy
-    const as0 = mirror(ps), wild = half.filter(i => D(i, as0) >= 5);
-    place(BERRY, 1, 1, 1, wild, true); place(DEER, 1, 1, 1, wild, true); place(ELEPHANT, 1, 1, 1, wild, true);
-    place(FOREST, 2, 2, 3, wild.filter(i => D(i, ps) >= 6 && D(i, as0) >= 6)); // cách xa để không dính vào cụm rừng quanh nhà
-    place(HILLS, 3, 1, 2, wild); place(STONE, 1, 1, 1, wild); place(MOUNTAIN, 3, 2, 3, wild);
+    const half = []; for (let i = 0; i < N * N; i++) if (inDom(i) && D(i, ps) > 4) half.push(i);
+    // tài nguyên ở vùng ngoài (cách mọi Nhà chính ít nhất 5 ô): phải đi dò mới thấy. Số cụm tăng theo diện tích vùng gốc (nửa bản đồ 15×15 = 1 phần)
+    const far = (i, d) => homes.every(h => h === ps || D(i, h) >= d), wild = half.filter(i => far(i, 5));
+    const nk = n => Math.max(n, Math.round(n * N * N / (four ? 450 : 225)));
+    place(BERRY, nk(1), 1, 1, wild, true); place(DEER, nk(1), 1, 1, wild, true); place(ELEPHANT, nk(1), 1, 1, wild, true);
+    place(FOREST, nk(2), 2, N > 15 ? 4 : 3, wild.filter(i => D(i, ps) >= 6 && far(i, 6))); // cách xa để không dính vào cụm rừng quanh nhà
+    place(HILLS, nk(3), 1, 2, wild); place(STONE, nk(1), 1, 1, wild); place(MOUNTAIN, nk(3), 2, 3, wild);
     // đối xứng tâm để hai bên cân bằng
-    for (let i = 0; i < N * N; i++) {
-      const r = Math.floor(i / N), c = i % N;
-      if (r > 7 || (r === 7 && c > 7)) { const m = mirror(i); if (m >= 0) t[m] = t[i]; }
-    }
+    for (let i = 0; i < N * N; i++) if (inDom(i)) for (const f of syms) { const m = f(i); if (m >= 0) t[m] = t[i]; }
     const as = mirror(ps);
-    out = { t, ps, as };
+    out = { t, ps, as, homes: four ? { BL: ps, BR: hflip(ps), TL: vflip(ps), TR: as } : null };
     const seen = new Set([ps]), q = [ps];
     while (q.length) { const i = q.shift(); for (const n of NB[i]) if (!seen.has(n) && isFinite(TERRAIN[t[n]].cost)) { seen.add(n); q.push(n); } }
-    if (seen.has(as)) return out;
+    if (homes.every(h => seen.has(h))) return out;
     out = null;
   }
-  return genMap(depth + 1);
+  return genMap(four, depth + 1);
 }
 
 // Chế độ bản đồ, chọn ở màn hình bắt đầu (áp dụng cho ván mới):
@@ -590,23 +614,77 @@ function setMapMode(m) {
   try { localStorage.setItem('mapMode', m); } catch (e) { /* bỏ qua */ }
 }
 // Lựa chọn ván mới: đời bắt đầu (cả hai bên) và độ khó AI, nhớ trên trình duyệt
+// Cỡ bản đồ cho ván mới (15 / 21 / 27), nhớ trên trình duyệt
+let mapSizeSel = 15;
+try { const n = +localStorage.getItem('mapSize'); if (MAP_SIZES[n]) mapSizeSel = n; } catch (e) { /* bỏ qua */ }
+function setMapSizeSel(n) { n = +n; if (!MAP_SIZES[n]) return; mapSizeSel = n; try { localStorage.setItem('mapSize', n); } catch (e) { /* bỏ qua */ } }
+// ---------- Bảng người chơi ở Ván mới (kiểu sảnh chờ) ----------
+// Mỗi hàng một phe; hàng 0 là bạn, các hàng sau là máy. civ: 'random' | 'none' | id đế chế;
+// color: chỉ số trong COLORS (mỗi phe một màu); team: 0 = "–" (không đội, đánh tất cả), 1–4 = số đội (cùng số là đồng minh)
+const COLORS = [
+  { label: 'Xanh lam', color: '#2f6fde' },
+  { label: 'Đỏ', color: '#d0453a' },
+  { label: 'Vàng', color: '#e0b52a' },
+  { label: 'Nâu', color: '#8b5a2b' },
+];
+const MAX_SIDES = 4, okCiv = k => k === 'random' || k === 'none' || CIV_PICK.includes(k);
+let lobby = null;
+try { // bảng đã lưu; chưa có thì lấy đế chế đã chọn ở phiên bản cũ
+  const L = JSON.parse(localStorage.getItem('lobby') || 'null');
+  if (Array.isArray(L) && L.length >= 2 && L.length <= MAX_SIDES) lobby = L.map(r => ({ civ: okCiv(r.civ) ? r.civ : 'random', color: +r.color | 0, team: +r.team | 0 }));
+  else { const c = localStorage.getItem('civ'), a = localStorage.getItem('aiCiv'); lobby = [{ civ: okCiv(c) ? c : 'none', color: 0, team: 0 }, { civ: okCiv(a) ? a : 'random', color: 1, team: 0 }]; }
+} catch (e) { /* bỏ qua */ }
+if (!lobby) lobby = [{ civ: 'none', color: 0, team: 0 }, { civ: 'random', color: 1, team: 0 }];
+function lobbyFix() { // màu không trùng, đội trong khoảng 0–4
+  const used = new Set();
+  for (const r of lobby) {
+    r.team = Math.max(0, Math.min(MAX_SIDES, r.team | 0));
+    if (!(r.color >= 0 && r.color < COLORS.length) || used.has(r.color)) { const k = COLORS.findIndex((_, k) => !used.has(k) && !lobby.some(x => x !== r && x.color === k)); r.color = k >= 0 ? k : COLORS.findIndex((_, k) => !used.has(k)); }
+    used.add(r.color);
+  }
+}
+function lobbySave() { try { localStorage.setItem('lobby', JSON.stringify(lobby)); } catch (e) { /* bỏ qua */ } }
+function lobbySet(i, key, v) {
+  const r = lobby[i]; if (!r) return;
+  if (key === 'civ' && okCiv(v)) r.civ = v;
+  if (key === 'team') r.team = +v | 0;
+  if (key === 'color') { v = +v; const o = lobby.find(x => x.color === v); if (o) o.color = r.color; r.color = v; } // màu đã có người dùng: đổi chéo
+  lobbyFix(); lobbySave();
+}
+function lobbyAdd() { if (lobby.length >= MAX_SIDES) return; lobby.push({ civ: 'random', color: COLORS.findIndex((_, k) => !lobby.some(x => x.color === k)), team: 0 }); lobbySave(); }
+function lobbyDel(i) { if (i < 1 || lobby.length <= 2) return; lobby.splice(i, 1); lobbySave(); }
+lobbyFix();
+const lobbyTeams = () => lobby.map((r, i) => (r.team ? r.team : 100 + i)); // không đội: một mình một đội
+const lobbyOk = () => new Set(lobbyTeams()).size >= 2; // cần ít nhất hai bên đối địch
+const sideName = i => (i ? COLORS[lobby[i].color].label : 'Bạn');
+const effMapSize = () => (lobby.length > 2 ? Math.max(21, mapSizeSel) : mapSizeSel); // 3–4 phe cần bản đồ từ 21×21
+function teamsText() { // ví dụ: "Bạn + Vàng đấu Đỏ + Nâu"
+  const t = lobbyTeams(), groups = [];
+  lobby.forEach((_, i) => { let g = groups.find(x => x.t === t[i]); if (!g) groups.push(g = { t: t[i], m: [] }); g.m.push(sideName(i)); });
+  return groups.map(g => g.m.join(' + ')).join(' đấu ');
+}
 let startAgeSel = 1, diffSel = 'normal';
 try { const a = +localStorage.getItem('startAge'); if (a >= 1 && a <= 3) startAgeSel = a; if (DIFFS[localStorage.getItem('diff')]) diffSel = localStorage.getItem('diff'); } catch (e) { /* bỏ qua */ }
 function setStartAge(n) { n = +n; if (!(n >= 1 && n <= MAX_AGE)) return; startAgeSel = n; try { localStorage.setItem('startAge', n); } catch (e) { /* bỏ qua */ } }
 function setDiff(k) { if (!DIFFS[k]) return; diffSel = k; try { localStorage.setItem('diff', k); } catch (e) { /* bỏ qua */ } }
-// Đế chế: của bạn ('none' hoặc id trong CIV_PICK) và của AI (thêm 'random' = ngẫu nhiên trong CIV_PICK)
-let civSel = 'none', aiCivSel = 'random';
-try { const c = localStorage.getItem('civ'), a = localStorage.getItem('aiCiv'); if (c === 'random' || c === 'none' || CIV_PICK.includes(c)) civSel = c; if (a === 'random' || a === 'none' || CIV_PICK.includes(a)) aiCivSel = a; } catch (e) { /* bỏ qua */ }
-function setCiv(k, ai) { if (!(k === 'none' || k === 'random' || CIV_PICK.includes(k))) return; if (ai) aiCivSel = k; else civSel = k; try { localStorage.setItem(ai ? 'aiCiv' : 'civ', k); } catch (e) { /* bỏ qua */ } }
 const civTip = c => [...c.bonus.map(b => '✔ ' + b.txt), ...(c.banTxt ? ['🚫 ' + c.banTxt] : []), ...c.later.map(x => '… ' + x)].join('<br>') || c.desc;
 const gDiff = () => DIFFS[(G && G.diff) || 'normal'] || DIFFS.normal; // ván cũ chưa có độ khó: Thường
 const aiCfg = () => CFG[gDiff().key];
 // p có biết địa hình ô i không (đã khám phá, hoặc ván bản đồ sáng)
 const known = (p, i) => !!(G.reveal || p.explored[i]);
 
-function mkPlayer(id, ci) {
+// Liên minh: cùng đội (team) là đồng minh — không đánh nhau, đi xuyên qua nhau, chung tầm nhìn
+const teamOf = pid => { const q = G.players[pid]; return q && q.team != null ? q.team : pid; };
+const friendly = (a, b) => a === b || teamOf(a) === teamOf(b); // chính mình hoặc đồng minh
+const isAlly = (a, b) => a !== b && teamOf(a) === teamOf(b);
+const isEnemy = (a, b) => !friendly(a, b);
+const foesOf = pid => G.players.filter(q => !q.dead && isEnemy(pid, q.id)); // các phe địch còn sống
+const relName = pid => (pid === 0 ? 'bạn' : `${isAlly(0, pid) ? 'đồng minh' : 'địch'} ${G.players[pid].name}`); // gọi tên phe theo góc nhìn người chơi
+const pName = pid => (pid === 0 ? 'Bạn' : G.players[pid].name);
+const hitCls = (att, tgt) => (friendly(0, tgt) ? 'bad' : friendly(0, att) ? 'good' : 'info'); // màu nhật ký: ta/đồng minh bị đánh = xấu
+function mkPlayer(id, ci, team = id, ck = id) { // ck: chỉ số màu trong COLORS
   return {
-    id, name: id ? 'Địch' : 'Bạn', color: id ? '#d0453a' : '#2f6fde',
+    id, team, name: id ? COLORS[ck].label : 'Bạn', color: COLORS[ck].color,
     res: { food: CFG.start.food, wood: CFG.start.wood, stone: CFG.start.stone, gold: CFG.start.gold }, age: 1, tech: {},
     city: { i: ci, hp: CFG.city.hp, maxHp: CFG.city.hp, queue: [], terr: within(ci, 3).filter(j => j !== ci) },
     explored: new Uint8Array(N * N), visible: new Uint8Array(N * N), ai: { attacking: false, wave: 4 },
@@ -614,23 +692,35 @@ function mkPlayer(id, ci) {
 }
 
 function newGame() {
-  const m = genMap();
+  lobbyFix(); if (!lobbyOk()) { showMenu(); return; }
+  const n = lobby.length;
+  setMapSize(effMapSize());
+  const four = n > 2, m = genMap(four), teams = lobbyTeams();
   G = { turn: 1, t: m.t, players: [], units: [], uid: 1, log: [], over: null, busy: false, amt: m.t.map(x => AMT[x] || 0), bld: {}, reveal: mapMode === 'light', diff: diffSel, startAge: startAgeSel };
-  G.players.push(mkPlayer(0, m.ps), mkPlayer(1, m.as));
-  const pickCiv = k => (k === 'random' ? CIV_PICK[rnd(CIV_PICK.length)] : k); // Ngẫu nhiên: một trong các đế chế đã làm
-  G.players[0].civ = pickCiv(civSel); G.players[1].civ = pickCiv(aiCivSel);
+  // Chỗ đặt Nhà chính: bạn ở góc dưới trái; đồng minh ưu tiên góc cùng phía, địch ưu tiên góc đối diện
+  const spot = [m.ps];
+  if (!four) spot.push(m.as);
+  else {
+    const free = { BR: m.homes.BR, TL: m.homes.TL, TR: m.homes.TR }, take = pref => { const k = pref.find(x => free[x] != null); const v = free[k]; delete free[k]; return v; };
+    for (let id = 1; id < n; id++) if (teams[id] === teams[0]) spot[id] = take(['BR', 'TL', 'TR']);
+    for (let id = 1; id < n; id++) if (teams[id] !== teams[0]) spot[id] = take(['TR', 'TL', 'BR']); // phe khác đội theo thứ tự hàng: cùng đội thì nằm cạnh nhau
+  }
+  for (let id = 0; id < n; id++) G.players.push(mkPlayer(id, spot[id], teams[id], lobby[id].color));
+  const pickCiv = k => (k === 'random' ? CIV_PICK[rnd(CIV_PICK.length)] : k); // Ngẫu nhiên: một trong các đế chế đã làm (mỗi phe chọn riêng)
+  for (const q of G.players) q.civ = pickCiv(lobby[q.id].civ);
   for (const p of G.players) for (let n = 2; n <= Math.min(G.startAge, MAX_AGE); n++) { // bắt đầu ở đời cao: chỉ đổi đời, lãnh thổ và Máu Nhà chính theo đời
     const a = AGE_UP[n], c = p.city; p.age = n; c.terr = within(c.i, a.rad).filter(j => j !== c.i);
     if (a.cityHp) { c.maxHp += a.cityHp; c.hp += a.cityHp; }
   }
-  const bonus = aiCfg().bonus; for (const k in G.players[1].res) G.players[1].res[k] += bonus;
+  const bonus = aiCfg().bonus; for (const q of G.players) if (q.id) for (const k in q.res) q.res[k] += bonus;
   for (const p of G.players) for (let k = 0; k < CFG.start.villagers; k++) spawn(p, 'vil', p.city.i);
   for (const p of G.players) updateVision(p);
   placing = null; sel = null; selPick = null; selB = null; techOpen = false; selReach.clear(); selTargets.clear(); floaters.length = 0;
-  if (civSel === 'random') log(`🎲 Đế chế của bạn (ngẫu nhiên): ${civOf(G.players[0]).name} — ${civOf(G.players[0]).bonus.map(b => b.txt).join('; ')}.`, 'info');
+  if (lobby[0].civ === 'random') log(`🎲 Đế chế của bạn (ngẫu nhiên): ${civOf(G.players[0]).name} — ${civOf(G.players[0]).bonus.map(b => b.txt).join('; ')}.`, 'info');
+  if (G.players.length > 2) log(`⚑ ${G.players.length} phe: ${teamsText()}.${G.players.some(q => isAlly(0, q.id)) ? ' Đồng minh không đánh nhau, đi xuyên qua nhau và chung tầm nhìn.' : ''}`, 'info');
   log(`Trong vòng 4 ô quanh Nhà chính có ${homeText()} — nhưng lúc đầu bạn chỉ thấy 2 ô. Hãy cho dân đi dò, rồi dựng kho sát mỏ.`, 'info');
   document.getElementById('overlay').classList.remove('show');
-  renderUI(); saveGame(); // ván mới thay bản lưu cũ
+  renderUI(); focusHome(); saveGame(); // ván mới thay bản lưu cũ
 }
 
 // ---------- Lưu ván ----------
@@ -647,14 +737,15 @@ function saveGame() {
 function readSave() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
-    return s && s.v === SAVE_VER && s.n === N && s.G && !s.G.over ? s : null;
+    return s && s.v === SAVE_VER && MAP_SIZES[s.n] && s.G && !s.G.over ? s : null;
   } catch (err) { return null; }
 }
 function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (err) { /* bỏ qua */ } }
 function loadGame() {
   const s = readSave(); if (!s) return false;
+  setMapSize(s.n);
   G = s.G; G.busy = false;
-  for (const p of G.players) { p.explored = Uint8Array.from(p.explored); p.visible = Uint8Array.from(p.visible); p.tech = p.tech || {}; delete p.tech.pike; } // bản lưu trước khi có nâng cấp: coi như chưa có
+  for (const p of G.players) { if (p.team == null) p.team = p.id; p.explored = Uint8Array.from(p.explored); p.visible = Uint8Array.from(p.visible); p.tech = p.tech || {}; delete p.tech.pike; } // bản lưu trước khi có nâng cấp: coi như chưa có
   // Bản lưu trước khi bỏ Lính giáo: Lính giáo thành Lính chùy/rìu (theo nâng cấp), bỏ nâng cấp Giáo dài khỏi hàng chờ
   for (const u of G.units) if (u.type === 'spear') { u.type = lineOf(G.players[u.owner], 'club'); u.hp = Math.min(u.hp, unitHp(G.players[u.owner], u.type)); }
   for (const b of Object.values(G.bld)) if (b.queue) b.queue = b.queue.filter(x => { // trả lại tiền mục đã bỏ
@@ -665,7 +756,7 @@ function loadGame() {
   for (const p of G.players) updateVision(p);
   log('Đã tải ván đã lưu.', 'info');
   document.getElementById('overlay').classList.remove('show');
-  renderUI();
+  renderUI(); focusHome();
   return true;
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveGame(); });
@@ -684,14 +775,14 @@ function toast(msg, cls) {
 function floater(i, text, color) { floaters.push({ i, text, color, t0: performance.now() }); }
 const unitAt = i => G.units.find(u => u.i === i);
 const unitsAt = i => G.units.filter(u => u.i === i);
-const cityAt = i => G.players.find(p => p.city.i === i);
+const cityAt = i => G.players.find(p => !p.dead && p.city.i === i);
 const isVil = u => u.type === 'vil';
 const ARMY_MAX = 5; // số lính tối đa trong một đạo (cùng đứng một ô)
 const armyAt = (i, owner) => G.units.filter(u => u.i === i && !isVil(u) && (owner == null || u.owner === owner));
 // Đoàn dân: các dân cùng phe đứng chung một ô (tối đa bằng số dân mỗi ô mỏ), đi và làm việc cùng nhau như một đạo
 const vilsAt = (i, owner) => G.units.filter(u => u.i === i && isVil(u) && (owner == null || u.owner === owner));
 const groupAt = u => (isVil(u) ? vilsAt : armyAt)(u.i, u.owner);
-const TRAINS = { barracks: ['club'], range: ['archer', 'carcher'], stable: ['scout', 'cav', 'chariot'], pikehall: ['pike'], temple: ['priest'] }; // dòng quân gốc; quân thật = lineOf()
+const TRAINS = { towncenter: ['vil'], barracks: ['club'], range: ['archer', 'carcher'], stable: ['scout', 'cav', 'chariot'], pikehall: ['pike'], temple: ['priest'] }; // dòng quân gốc; quân thật = lineOf()
 const ust = u => UNITS[u.type];
 // ---------- Nâng cấp: hiệu ứng ----------
 const hasTech = (p, id) => !!(p && p.tech && p.tech[id]);
@@ -728,19 +819,30 @@ function canAfford(p, cost) { return Object.entries(cost).every(([k, v]) => p.re
 function pay(p, cost, sign = -1) { for (const k in cost) p.res[k] += sign * cost[k]; }
 
 function updateVision(p) {
-  if (p.id === 1 && gDiff().omni) { p.visible.fill(1); p.explored.fill(1); return; } // AI Rất khó thấy toàn bộ bản đồ
+  if (p.id !== 0 && gDiff().omni) { p.visible.fill(1); p.explored.fill(1); return; } // AI Rất khó thấy toàn bộ bản đồ
   p.visible.fill(0);
+  if (p.dead) return;
   const see = (i, r) => { for (const j of within(i, r)) { p.visible[j] = 1; p.explored[j] = 1; } };
-  see(p.city.i, 2);
-  for (const b of bldOf(p)) if (b.done) see(b.tile, 1);
-  for (const u of G.units) if (u.owner === p.id) see(u.i, ust(u).vision + civAdd(p, 'vision', u.type) + (G.t[u.i] === HILLS ? 2 : 0));
+  const share = sharesWith(p); // các phe mà p thấy được tầm nhìn: chính mình, cộng đồng minh nếu đã có Chữ viết
+  for (const q of G.players) {
+    if (q.dead) continue;
+    if (isAlly(p.id, q.id)) p.explored[q.city.i] = 1; // luôn biết chỗ Nhà chính đồng minh (hiện trên bản đồ con)
+    if (!share.has(q.id)) continue;
+    see(q.city.i, 2);
+    for (const b of bldOf(q)) if (b.done) see(b.tile, isTc(b) ? 2 : 1);
+    if (q !== p) for (let j = 0; j < q.explored.length; j++) if (q.explored[j]) p.explored[j] = 1; // vùng đồng minh đã khám phá
+  }
+  for (const u of G.units) if (share.has(u.owner)) see(u.i, ust(u).vision + civAdd(G.players[u.owner], 'vision', u.type) + (G.t[u.i] === HILLS ? 2 : 0));
 }
+// Chung tầm nhìn: p thấy những gì đồng minh thấy khi đã nghiên cứu Chữ viết
+const sharesWith = p => new Set(G.players.filter(q => q.id === p.id || (isAlly(p.id, q.id) && p.tech && p.tech.writing)).map(q => q.id));
 function canSee(pid, u) {
   if (u.owner === pid) return true;
   const p = G.players[pid];
   if (!p.visible[u.i]) return false;
-  if (G.t[u.i] !== FOREST) return true;
-  return D(p.city.i, u.i) <= 1 || G.units.some(o => o.owner === pid && D(o.i, u.i) <= 1); // rừng che giấu quân
+  if (G.t[u.i] !== FOREST || friendly(u.owner, pid)) return true; // quân đồng minh trong tầm nhìn: rừng không che
+  const share = sharesWith(p);
+  return G.players.some(q => !q.dead && share.has(q.id) && D(q.city.i, u.i) <= 1) || G.units.some(o => share.has(o.owner) && D(o.i, u.i) <= 1); // rừng che giấu quân
 }
 
 // ---------- Dân số, khai thác, công trình ----------
@@ -760,7 +862,7 @@ const ageOfItem = it => +String(it.id).slice(3) || 2; // mục hàng chờ 'age2
 function dropDist(p, i, res) {
   let d = D(i, p.city.i);
   const want = res === 'food' ? 'granary' : 'storage', meat = isMeat(i); // thịt hươu, voi trả được cả về Kho tài nguyên
-  for (const b of bldOf(p)) if (b.done && (b.id === want || (meat && b.id === 'storage'))) d = Math.min(d, D(i, b.tile));
+  for (const b of bldOf(p)) if (b.done && (b.id === want || isTc(b) || (meat && b.id === 'storage'))) d = Math.min(d, D(i, b.tile)); // Nhà chính phụ nhận mọi loại
   return Math.max(1, d);
 }
 // Dân đứng ở ô này sẽ khai thác gì? null nếu không khai thác được
@@ -834,18 +936,22 @@ function spawn(p, type, from) { // tìm ô trống gần `from` nhất
 }
 // Lãnh thổ xây dựng: vùng quanh Nhà chính (city.terr, rộng ra khi lên đời) cộng thêm TERR_BLD ô quanh mỗi công trình
 // đã xây xong của mình. Phần mở rộng không lấn vào vùng quanh Nhà chính địch.
-const TERR_BLD = 2;
+const TERR_BLD = 2, TC_RAD = 3, TC_GAP = 5; // Nhà chính phụ: lãnh thổ bán kính 3, cách mọi Nhà chính (gốc hoặc phụ) ít nhất 5 ô
+const isTc = b => b && b.id === 'towncenter';
+const allCityTiles = () => [...G.players.filter(q => !q.dead).map(q => q.city.i), ...Object.values(G.bld).filter(isTc).map(b => b.tile)];
 function terrOf(p) {
-  const s = new Set(p.city.terr), foe = G.players[1 - p.id].city;
+  const s = new Set(p.city.terr), others = G.players.filter(q => q !== p && !q.dead).map(q => q.city);
   for (const b of Object.values(G.bld)) if (b.owner === p.id && b.done)
-    for (const j of within(b.tile, TERR_BLD)) if (j !== foe.i && j !== p.city.i && !foe.terr.includes(j)) s.add(j);
+    for (const j of within(b.tile, isTc(b) ? TC_RAD : TERR_BLD)) if (j !== p.city.i && others.every(c => j !== c.i && !c.terr.includes(j))) s.add(j);
   return s;
 }
 const freeSites = p => [...terrOf(p)].filter(i => G.t[i] === EMPTY && !G.bld[i] && !unitAt(i));
 function buildSites(p, id) { // kho đặt được trên mọi ô Đất trống đã khám phá (trừ lãnh thổ địch); công trình khác chỉ trong lãnh thổ
   if (!BUILDINGS[id].drop) return freeSites(p);
-  const foe = terrOf(G.players[1 - p.id]), out = [];
-  for (let i = 0; i < N * N; i++) if (p.explored[i] && G.t[i] === EMPTY && !G.bld[i] && !unitAt(i) && !foe.has(i)) out.push(i);
+  const foe = new Set(); for (const q of G.players) if (q !== p && !q.dead) for (const j of terrOf(q)) foe.add(j); // không đặt trong lãnh thổ phe khác
+  const out = [];
+  const cities = id === 'towncenter' ? allCityTiles() : [];
+  for (let i = 0; i < N * N; i++) if (p.explored[i] && G.t[i] === EMPTY && !G.bld[i] && !unitAt(i) && !foe.has(i) && cities.every(c => D(i, c) >= TC_GAP)) out.push(i);
   return out;
 }
 function startBuild(p, u, id, tile) {
@@ -865,7 +971,7 @@ function destroyBld(tile) {
 function queueOf(p, where) { return where === 'city' ? p.city : (G.bld[where] && G.bld[where].owner === p.id && G.bld[where].done ? G.bld[where] : null); }
 function train(p, where, id) {
   const q = queueOf(p, where), d = UNITS[id];
-  if (!q || q.queue.length >= QUEUE_MAX || d.age > p.age || d.at !== (where === 'city' ? 'city' : q.id)) return false;
+  if (!q || q.queue.length >= QUEUE_MAX || d.age > p.age || d.at !== (where === 'city' || q.id === 'towncenter' ? 'city' : q.id)) return false;
   if (where !== 'city' && !trainList(p, q.id).includes(id)) return false;
   const cost = unitCost(p, id);
   if (!canAfford(p, cost) || popUsed(p) >= popCap(p)) return false;
@@ -895,6 +1001,7 @@ function finishTech(p, id) {
     }
   }
   if (t.farmAmt) for (const b of bldOf(p)) if (b.id === 'farm') b.amt += t.farmAmt; // ruộng đang có cũng được cộng
+  if (t.shareVision) updateVision(p); // Chữ viết: thấy ngay tầm nhìn và vùng đã khám phá của đồng minh
   if (t.upgrade) {
     const [from, to] = t.upgrade, gain = unitHp(p, to) - unitHp(p, from);
     for (const u of myUnits(p.id)) if (u.type === from) { u.type = to; u.hp = Math.max(1, u.hp + gain); } // giữ nguyên phần Máu đã mất
@@ -994,12 +1101,13 @@ function blockedBld(u, n) { // công trình chặn đường, trừ dân vào Ru
 function canPass(u, n) {
   if (!isFinite(TERRAIN[G.t[n]].cost) || cityAt(n)) return false;
   const b = G.bld[n];
-  if (b && b.owner !== u.owner) return false; // công trình địch chặn đường; công trình mình đi xuyên qua được (nhưng không dừng lại)
-  return !G.units.some(o => o.i === n && o.owner !== u.owner);
+  if (b && isEnemy(b.owner, u.owner)) return false; // công trình địch chặn đường; công trình mình / đồng minh đi xuyên qua được (nhưng không dừng lại)
+  return !G.units.some(o => o.i === n && isEnemy(o.owner, u.owner));
 }
 function canStop(u, n, size = 1) {
   if (!canPass(u, n) || blockedBld(u, n)) return false;
   const occ = unitsAt(n).filter(o => o !== u);
+  if (occ.some(o => o.owner !== u.owner)) return false; // không đứng chung ô với quân đồng minh
   if (isVil(u)) return occ.every(isVil) && occ.length + size <= (G.bld[n] ? 1 : MINE_CAP); // đoàn dân tối đa MINE_CAP (Ruộng lúa: 1 dân)
   if (!occ.length) return true;
   return occ.every(o => !isVil(o)) && occ.length + size <= ARMY_MAX; // lính nhập đạo, tối đa 5
@@ -1030,7 +1138,7 @@ function distMap(goal, u, breakWalls) {
     for (const n of NB[i]) {
       let tc = TERRAIN[G.t[n]].cost; if (!isFinite(tc) || cityAt(n)) continue;
       const b = G.bld[n];
-      if (b && !(u && b.owner === u.owner)) { if (!breakWalls) continue; tc += 8; }
+      if (b && !(u && friendly(b.owner, u.owner))) { if (!breakWalls) continue; tc += 8; }
       if (c + tc < dm[n]) { dm[n] = c + tc; q.push([n, c + tc]); }
     }
   }
@@ -1157,7 +1265,7 @@ function wildlifeTurn() {
     prey.hp -= ELEPHANT_DMG;
     const seen = G.players[0].visible[at] || prey.owner === 0;
     if (seen) floater(prey.i, '-' + ELEPHANT_DMG, '#ff5a4a');
-    const who = `${isVil(prey) ? 'dân làng' : UNITS[prey.type].name} ${prey.owner === 0 ? 'của bạn' : 'địch'}`;
+    const who = `${isVil(prey) ? 'dân làng' : UNITS[prey.type].name} ${prey.owner === 0 ? 'của bạn' : relName(prey.owner)}`;
     if (prey.hp <= 0) {
       killUnit(prey);
       if (seen) log(`🐘 Voi húc chết một ${who}!`, prey.owner === 0 ? 'bad' : 'good');
@@ -1199,14 +1307,16 @@ function autoMoves(pid) { // cuối lượt: thợ xây đi tới công trườn
 function attackTargets(grp, rc) {
   const out = new Map(), u = grp[0];
   if (grp.some(m => m.attacked) || !grp.some(m => ust(m).atk > 0)) return out;
-  const me = G.players[u.owner], enemy = G.players[1 - u.owner], cands = [], seen = new Set();
+  const me = G.players[u.owner], cands = [], seen = new Set();
   for (const e of G.units) {
-    if (e.owner === u.owner || seen.has(e.i) || !canSee(u.owner, e)) continue;
+    if (!isEnemy(e.owner, u.owner) || seen.has(e.i) || !canSee(u.owner, e)) continue;
     seen.add(e.i);
     cands.push(isVil(e) ? { key: 'v' + e.i, i: e.i, tgt: { vils: e.i } } : { key: 'a' + e.i, i: e.i, tgt: { army: e.i } });
   }
-  for (const b of bldOf(enemy)) if (me.visible[b.tile]) cands.push({ key: 'b' + b.tile, i: b.tile, tgt: { b } });
-  if (me.explored[enemy.city.i]) cands.push({ key: 'c', i: enemy.city.i, tgt: { city: enemy } });
+  for (const enemy of foesOf(u.owner)) {
+    for (const b of bldOf(enemy)) if (me.visible[b.tile]) cands.push({ key: 'b' + b.tile, i: b.tile, tgt: { b } });
+    if (me.explored[enemy.city.i]) cands.push({ key: 'c' + enemy.city.i, i: enemy.city.i, tgt: { city: enemy } });
+  }
   for (const cd of cands) {
     let pos = -1, cost = Infinity;
     if (D(u.i, cd.i) === 1) { pos = u.i; cost = 0; }
@@ -1223,7 +1333,7 @@ function atkZone(u, grp, mv, full) {
   for (const s of [u.i, ...mv.keys()]) for (const n of NB[s]) {
     if (n === u.i || mv.has(n) || !isFinite(TERRAIN[G.t[n]].cost) && !cityAt(n)) continue;
     const c = cityAt(n), b = G.bld[n];
-    if ((c && c.id === u.owner) || (b && b.owner === u.owner) || G.units.some(o => o.i === n && o.owner === u.owner)) continue;
+    if ((c && friendly(c.id, u.owner)) || (b && friendly(b.owner, u.owner)) || G.units.some(o => o.i === n && friendly(o.owner, u.owner))) continue;
     out.add(n);
   }
   return out;
@@ -1269,8 +1379,9 @@ function killUnit(u) {
 }
 function strike(u, tgt) { // một đòn đánh lên dân làng, công trình hoặc Nhà chính (không phản đòn)
   const ti = tgt.u ? tgt.u.i : tgt.b ? tgt.b.tile : tgt.city.city.i;
-  const tname = tgt.u ? UNITS[tgt.u.type].name : tgt.b ? BUILDINGS[tgt.b.id].name : 'Nhà chính', who = u.owner ? 'Địch' : 'Bạn';
-  const dmg = calcDmg(u, tgt, 1, true), cls = u.owner ? 'bad' : 'good';
+  const tname = tgt.u ? UNITS[tgt.u.type].name : tgt.b ? BUILDINGS[tgt.b.id].name : 'Nhà chính', who = u.owner === 0 ? 'Bạn' : relName(u.owner).replace(/^./, ch => ch.toUpperCase());
+  const towner = tgt.u ? tgt.u.owner : tgt.b ? tgt.b.owner : tgt.city.id;
+  const dmg = calcDmg(u, tgt, 1, true), cls = hitCls(u.owner, towner);
   floater(ti, '-' + dmg, '#ff5a4a');
   const msg = `${who}: ${UNITS[u.type].name} đánh ${tname} (-${dmg})`;
   if (tgt.u) {
@@ -1281,16 +1392,16 @@ function strike(u, tgt) { // một đòn đánh lên dân làng, công trình ho
     if (tgt.b.hp <= 0) { destroyBld(tgt.b.tile); log(msg + ' — công trình bị phá hủy!', cls); for (const p of G.players) updateVision(p); return; }
   } else {
     tgt.city.city.hp -= dmg;
-    if (tgt.city.city.hp <= 0) { tgt.city.city.hp = 0; log(msg + ' — nhà chính sụp đổ!', cls); gameOver(u.owner, 'Nhà chính đối phương đã bị tiêu diệt.'); return; }
+    if (tgt.city.city.hp <= 0) { tgt.city.city.hp = 0; log(msg + ' — nhà chính sụp đổ!', cls); if (!promoteTc(tgt.city)) eliminate(tgt.city); return; }
   }
-  log(msg + '.', u.owner ? 'bad' : '');
+  log(msg + '.', cls === 'bad' ? 'bad' : '');
 }
 function groupAttack(grp, tgt) { // cả đạo đánh dân làng / công trình / Nhà chính: mỗi thành viên một đòn
   const hitters = grp.filter(m => ust(m).atk > 0);
   for (const m of grp) { m.mp = 0; m.attacked = true; m.goto = null; }
   if (tgt.vils != null) {
     for (const m of hitters) {
-      const v = G.units.find(x => x.i === tgt.vils && x.owner !== m.owner && isVil(x));
+      const v = G.units.find(x => x.i === tgt.vils && isEnemy(x.owner, m.owner) && isVil(x));
       if (!v) break;
       strike(m, { u: v });
     }
@@ -1304,7 +1415,7 @@ function groupAttack(grp, tgt) { // cả đạo đánh dân làng / công trình
     const alive = grp.filter(m => G.units.includes(m)), v = alive[rnd(alive.length)];
     if (v) {
       v.hp -= 2; floater(v.i, '-2', '#ffb347');
-      log(`Nhà chính phản đòn ${UNITS[v.type].name} ${v.owner ? 'địch' : 'của bạn'} (-2)${v.hp <= 0 ? ' — tử trận' : ''}.`, v.owner ? 'good' : 'bad');
+      log(`Nhà chính phản đòn ${UNITS[v.type].name} ${v.owner ? relName(v.owner) : 'của bạn'} (-2)${v.hp <= 0 ? ' — tử trận' : ''}.`, friendly(0, v.owner) ? 'bad' : 'good');
       if (v.hp <= 0) killUnit(v);
     }
   }
@@ -1318,6 +1429,35 @@ function refreshUnits(pid) {
     if (!u.attacked && u.hp < maxHp(u) && healers.some(h => h.i === u.i && h !== u)) u.hp = Math.min(maxHp(u), u.hp + heal); // một đạo chỉ tính 1 Thầy tu; Thầy tu không tự hồi cho mình
     u.mp = maxMp(u); u.moved = false; u.attacked = false; u.speared = false;
   }
+}
+// Nhà chính gốc sụp đổ mà còn Nhà chính phụ: nhà phụ (Máu còn nhiều nhất) thành Nhà chính. Hàng chờ ở nhà gốc mất (kể cả đang lên đời)
+function promoteTc(p) {
+  const b = bldOf(p).filter(x => isTc(x) && x.done).sort((a, c) => c.hp - a.hp)[0];
+  if (!b) return false;
+  const c = p.city, rad = (AGE_UP[p.age] && AGE_UP[p.age].rad) || 3;
+  delete G.bld[b.tile];
+  c.i = b.tile; c.hp = b.hp; c.maxHp = b.max; c.queue = b.queue || []; c.terr = within(b.tile, rad).filter(j => j !== b.tile);
+  if (selB === b.tile) selB = 'city';
+  log(p.id === 0 ? '🏯 Nhà chính đã mất — Nhà chính phụ lên làm Nhà chính mới!' : `🏯 ${relName(p.id).replace(/^./, ch => ch.toUpperCase())} mất Nhà chính, Nhà chính phụ lên thay.`, friendly(0, p.id) ? 'bad' : 'good');
+  for (const q of G.players) updateVision(q);
+  return true;
+}
+// Nhà chính sụp đổ: phe đó bị loại — quân và công trình biến mất. Hết phe địch: thắng; bạn mất Nhà chính: thua
+function eliminate(p) {
+  if (p.dead) return;
+  p.dead = true; p.city.hp = 0; p.city.queue = [];
+  G.units = G.units.filter(u => u.owner !== p.id);
+  for (const b of Object.values(G.bld)) if (b.owner === p.id) destroyBld(b.tile);
+  if (sel && !G.units.includes(sel)) select(null);
+  if (selB != null && selB !== 'city' && !G.bld[selB]) selB = null;
+  if (p.id) log(`🏚 Phe ${p.name} (${isAlly(0, p.id) ? 'đồng minh' : 'địch'}) đã bị loại: Nhà chính sụp đổ, quân và công trình tan rã.`, isAlly(0, p.id) ? 'bad' : 'good');
+  for (const q of G.players) updateVision(q);
+  checkEnd();
+}
+function checkEnd() {
+  if (G.over) return;
+  if (G.players[0].dead) { gameOver(1, 'Nhà chính của bạn đã bị tiêu diệt.'); return; }
+  if (!foesOf(0).length) gameOver(0, G.players.length > 2 ? 'Mọi phe đối địch đã bị loại.' : 'Nhà chính đối phương đã bị tiêu diệt.');
 }
 function gameOver(winner, reason) {
   if (G.over) return;
@@ -1381,6 +1521,7 @@ function aiResearch(p, mil, vills) { // mỗi lượt bắt đầu tối đa 1 n
     ['wood2', true],
     ['stone2', true],
     // Học viện: Hậu cần khi đông bộ binh, Quý tộc khi đông kỵ binh, Kiến trúc sau cùng
+    ['writing', G.players.some(q => !q.dead && isAlly(p.id, q.id))],
     ['logistics', cntInf >= 4],
     ['nobility', cntCav >= 3],
     ['architecture', true],
@@ -1400,6 +1541,13 @@ function aiResearch(p, mil, vills) { // mỗi lượt bắt đầu tối đa 1 n
     if (research(p, b.tile, id)) return;
   }
 }
+function aiTcSite(p) { // chỗ đặt Nhà chính phụ: nhiều mỏ chưa nằm trong lãnh thổ, không quá xa nhà (≤ 9 ô)
+  const terr = terrOf(p), s = aiSite(p, i => {
+    const d = D(i, p.city.i); if (d > 9) return -99;
+    return within(i, TC_RAD).filter(j => isMine(j) && known(p, j) && !terr.has(j)).length - d / 3;
+  }, buildSites(p, 'towncenter'));
+  return s && s.score >= 3 ? s : null;
+}
 function aiPickBuilding(p, vills) {
   const wood = p.res.wood, any = id => countBld(p, id, false), room = popCap(p) - popUsed(p);
   const near = min => aiSite(p, i => (D(i, p.city.i) >= min ? -D(i, p.city.i) : -99));
@@ -1411,6 +1559,10 @@ function aiPickBuilding(p, vills) {
     const s = near(2); if (s) return ['barracks', s.tile];
   }
   if (!any('granary') && vills >= 6 && wood >= 120) { const s = aiDropSite(p, 'granary') || near(2); if (s) return ['granary', s.tile]; }
+  if (p.age >= 3 && countBld(p, 'academy', true) && !any('towncenter')) { // có Học viện: để dành Gỗ xây Nhà chính phụ đầu tiên để mở rộng
+    const s = aiTcSite(p);
+    if (s) { if (wood < bldCost(p, 'towncenter').wood) return null; return ['towncenter', s.tile]; }
+  }
   if (p.age >= 2) {
     if (!any('market') && countBld(p, 'granary', true) && aiFoodLeft(p) < 600) { // đồ ăn quanh nhà sắp cạn: xây Chợ để trồng Ruộng lúa
       if (wood < 150) return null;
@@ -1424,6 +1576,7 @@ function aiPickBuilding(p, vills) {
   if (p.age >= 3 && !any('market') && wood >= 350 && p.res.stone >= 100) { const s = near(2); if (s) return ['market', s.tile]; } // cần Chợ để xây Học viện
   if (p.age >= 3 && !any('temple') && !civBanned(p, 'temple') && countBld(p, 'market', true) && countBld(p, 'barracks', true) + countBld(p, 'range', true) + countBld(p, 'stable', true) >= 2 && wood >= 200 && p.res.gold >= 250) { const s = near(2); if (s) return ['temple', s.tile]; }
   if (p.age >= 3 && !any('academy') && !civBanned(p, 'academy') && countBld(p, 'market', true) && ['barracks', 'range', 'stable', 'pikehall'].filter(id => countBld(p, id, true)).length >= 2 && wood >= 200 && p.res.stone >= 100) { const s = near(2); if (s) return ['academy', s.tile]; }
+  if (any('towncenter') === 1 && wood >= 400) { const s = aiTcSite(p); if (s) return ['towncenter', s.tile]; } // Nhà chính phụ thứ hai khi dư Gỗ
   if (any('storage') < 4 && wood >= 150) { const s = aiDropSite(p, 'storage'); if (s && s.score >= 3) return ['storage', s.tile]; }
   if (any('granary') < 3 && wood >= 150) { const s = aiDropSite(p, 'granary'); if (s && s.score >= 2) return ['granary', s.tile]; }
   if (any('barracks') < 3 && (wood >= 400 || (p.res.food > 600 && wood >= 120))) { const s = near(2); if (s) return ['barracks', s.tile]; }
@@ -1454,14 +1607,14 @@ function aiAssignVillager(p, u, vills, avoid) {
       if (!known(p, i) || D(i, p.city.i) > 7 || liveElephant(i)) continue; // AI chưa biết săn voi (dễ bị húc), chỉ lấy xác voi đã chết
       const g = gatherAt(p, i); if (!g || g.res !== res) continue;
       const assigned = vills.filter(v => v !== u && (v.goto === i || (v.goto == null && v.i === i))).length;
-      if (assigned >= tileCap(i) || G.units.some(e => e.i === i && e.owner !== p.id)) continue;
+      if (assigned >= tileCap(i) || G.units.some(e => e.i === i && e.owner !== p.id)) continue; // ô có quân phe khác (kể cả đồng minh): không vào được
       const c = g.d * 4 + D(u.i, i) - (g.farm ? 1 : 0);
       if (c < bc) { bc = c; best = i; }
     }
     if (best >= 0) { u.scout = false; if (best !== u.i) { u.goto = best; walk(u, best); if (u.i === best) u.goto = null; } return; }
     if (res === order[0] && !vills.some(v => v !== u && v.scout && v.goto != null)) { // không biết nguồn nào của loại đang cần nhất: cử 1 dân đi dò
       let tgt = -1, td = Infinity;
-      for (let i = 0; i < N * N; i++) if (!p.explored[i] && isFinite(TERRAIN[G.t[i]].cost) && D(i, p.city.i) <= 10 && D(i, u.i) < td) { td = D(i, u.i); tgt = i; }
+      for (let i = 0; i < N * N; i++) if (!p.explored[i] && isFinite(TERRAIN[G.t[i]].cost) && D(i, p.city.i) <= Math.round(N * 2 / 3) && D(i, u.i) < td) { td = D(i, u.i); tgt = i; }
       if (tgt >= 0) { u.scout = true; u.goto = tgt; walk(u, tgt); if (u.i === tgt) u.goto = null; return; }
     }
   }
@@ -1470,7 +1623,7 @@ function aiEconomy(p) {
   const c = p.city, mine = myUnits(p.id), vills = mine.filter(isVil), mil = mine.filter(u => !isVil(u));
   const na = nextAge(p), canAge = !!na && ageReq(p) >= na.need, saving = canAge && vills.length >= (p.age === 1 ? 8 : 14);
   const ageFood = na ? na.cost.food || 0 : 0;
-  const threat = G.units.some(u => u.owner !== p.id && !isVil(u) && canSee(p.id, u) && D(u.i, c.i) <= 5);
+  const threat = G.units.some(u => isEnemy(u.owner, p.id) && !isVil(u) && canSee(p.id, u) && D(u.i, c.i) <= 5);
   // Nhà chính: lên đời hoặc ra dân
   if (!c.queue.length) {
     if (saving && canAfford(p, na.cost)) startAge(p);
@@ -1487,9 +1640,9 @@ function aiEconomy(p) {
     const n = t => mil.filter(u => u.type === t).length;
     const inf = lineOf(p, 'club'), arc = lineOf(p, 'archer'), cav = lineOf(p, 'cav');
     // Xe chiến (không tốn Vàng) khi thấy nhiều Cung thủ địch hoặc đang thiếu Vàng
-    const foeArc = G.units.filter(u => u.owner !== p.id && UNITS[u.type].cls === 'archer' && canSee(p.id, u)).length;
+    const foeArc = G.units.filter(u => isEnemy(u.owner, p.id) && UNITS[u.type].cls === 'archer' && canSee(p.id, u)).length;
     // Lính trường thương: mua khi thấy Kỵ binh / Xe chiến địch, hoặc giữ khoảng 1/4 quân là trường thương
-    const foeCav = G.units.filter(u => u.owner !== p.id && ['cav', 'chariot'].includes(UNITS[u.type].cls) && canSee(p.id, u)).length;
+    const foeCav = G.units.filter(u => isEnemy(u.owner, p.id) && ['cav', 'chariot'].includes(UNITS[u.type].cls) && canSee(p.id, u)).length;
     if (b.id === 'pikehall' && n('pike') >= foeCav && n('pike') * 4 > mil.length + 2) continue;
     const stableId = !civBanned(p, 'chariot') && !unitLocked(p, 'chariot') && (civBanned(p, cav) || (p.age >= 3 && (foeArc >= 2 || p.res.gold < (unitCost(p, cav).gold || 0) + 30))) ? 'chariot' : cav;
     if (b.id === 'stable' && p.age < 3 && n('scout') >= 2) continue; // Đời 2: Chuồng ngựa chỉ có Ngựa dò, giữ 2 con để dò và quấy
@@ -1519,14 +1672,14 @@ function aiEconomy(p) {
 }
 const armyPower = list => list.reduce((a, m) => a + m.hp * (atkOf(m) + defOf(m)), 0);
 async function aiArmy(grp, p, ctx) {
-  const human = G.players[0], home = p.city.i, u = grp[0];
+  const human = G.players[0], home = p.city.i, u = grp[0]; // human: chỉ để biết người chơi có thấy nước đi không
   const march = aiCfg().march, marching = grp.length >= march || (D(u.i, home) > 5 && grp.length >= 2); // đạo đủ đông mới kéo đi
   const rc = reach(u, false, grp);
   let best = null, bs = 0;
   for (const t of attackTargets(grp, rc).values()) {
     let s;
     if (t.tgt.army != null) {
-      const ratio = armyPower(grp) / Math.max(1, armyPower(armyAt(t.i, 0))), nearHome = D(t.i, home) <= 5;
+      const ratio = armyPower(grp) / Math.max(1, armyPower(armyAt(t.i))), nearHome = D(t.i, home) <= 5;
       if (ratio < (nearHome ? 0.6 : 0.9)) continue; // không lao vào trận quá bất lợi
       s = 10 * ratio + (nearHome ? 5 : 0);
     } else if (t.tgt.vils != null) s = 8;
@@ -1538,8 +1691,8 @@ async function aiArmy(grp, p, ctx) {
     if (best.pos !== u.i) moveGroup(grp, best.pos, best.cost);
     if (show) await sleep(180);
     if (best.tgt.army != null) {
-      const def = armyAt(best.i, 0);
-      if (tacticalOn) await askDefense(grp, def); else simBattle(grp, def);
+      const def = armyAt(best.i);
+      if (tacticalOn && def[0].owner === 0) await askDefense(grp, def); else simBattle(grp, def); // máy đấu máy: luôn tự động
     } else groupAttack(grp, best.tgt);
     if (show) await sleep(220);
     return;
@@ -1562,32 +1715,36 @@ async function aiArmy(grp, p, ctx) {
     if (show) await sleep(110);
   }
 }
-async function aiTurn() {
-  const p = G.players[1], human = G.players[0];
-  refreshUnits(1); updateVision(p);
+async function aiTurn(p) {
+  refreshUnits(p.id); updateVision(p);
   aiEconomy(p);
+  // Nhà chính địch nhắm tới: giữ mục tiêu cũ nếu còn, không thì chọn phe địch gần nhất
+  const foes = foesOf(p.id); if (!foes.length) return;
+  let tgt = G.players[p.ai.target];
+  if (!tgt || tgt.dead || !isEnemy(p.id, tgt.id)) { tgt = foes.slice().sort((a, b) => D(p.city.i, a.city.i) - D(p.city.i, b.city.i))[0]; p.ai.target = tgt.id; }
   const ctx = {
-    dmHome: distMap(p.city.i, { owner: p.id }), dmEnemy: distMap(human.city.i, { owner: p.id }, true), // tìm đường tới Nhà chính địch, phá công trình chắn lối nếu cần
-    threats: [...new Set(G.units.filter(u => u.owner === 0 && !isVil(u) && canSee(1, u) && D(u.i, p.city.i) <= 5).map(u => u.i))],
+    dmHome: distMap(p.city.i, { owner: p.id }), dmEnemy: distMap(tgt.city.i, { owner: p.id }, true), // tìm đường tới Nhà chính địch, phá công trình chắn lối nếu cần
+    threats: [...new Set(G.units.filter(u => isEnemy(u.owner, p.id) && !isVil(u) && canSee(p.id, u) && D(u.i, p.city.i) <= 5).map(u => u.i))],
   };
+  const pid = p.id;
   // Tách quân: lính còn ≤ 35% Máu rời đạo (đạo phải còn người ở lại), lui về gần nhà rồi đứng yên hồi máu tới khi đầy
-  for (const m of myUnits(1)) {
+  for (const m of myUnits(pid)) {
     if (isVil(m)) continue;
     if (m.rest && m.hp >= maxHp(m)) m.rest = false;
-    if (!m.rest && canSplit(m) && m.hp <= maxHp(m) * 0.35 && armyAt(m.i, 1).some(o => o !== m && o.hp > maxHp(o) * 0.35)) m.rest = true;
+    if (!m.rest && canSplit(m) && m.hp <= maxHp(m) * 0.35 && armyAt(m.i, pid).some(o => o !== m && o.hp > maxHp(o) * 0.35)) m.rest = true;
   }
-  for (const m of myUnits(1).filter(x => x.rest && canSplit(x))) {
+  for (const m of myUnits(pid).filter(x => x.rest && canSplit(x))) {
     if (D(m.i, p.city.i) <= 2) continue; // đã về tới nhà: đứng yên để hồi máu
     const rc = reach(m, false, [m]); let to = -1, bd = ctx.dmHome[m.i], bc = 0;
-    for (const [i, c] of rc) if (!armyAt(i, 1).length && ctx.dmHome[i] < bd - 1e-6) { bd = ctx.dmHome[i]; to = i; bc = c; }
+    for (const [i, c] of rc) if (!armyAt(i, pid).length && ctx.dmHome[i] < bd - 1e-6) { bd = ctx.dmHome[i]; to = i; bc = c; }
     if (to >= 0) moveUnit(m, to, bc);
   }
-  const tiles = [...new Set(myUnits(1).filter(u => !isVil(u) && !u.rest).map(u => u.i))];
+  const tiles = [...new Set(myUnits(pid).filter(u => !isVil(u) && !u.rest).map(u => u.i))];
   for (const t of tiles) {
     if (G.over) return;
-    const grp = armyAt(t, 1).filter(m => !m.rest);
+    const grp = armyAt(t, pid).filter(m => !m.rest);
     if (!grp.length) continue; // đạo này đã nhập vào đạo khác
-    ctx.threats = ctx.threats.filter(i => armyAt(i, 0).length);
+    ctx.threats = ctx.threats.filter(i => armyAt(i).some(o => isEnemy(o.owner, pid)));
     await aiArmy(grp, p, ctx);
   }
 }
@@ -1597,9 +1754,14 @@ async function endTurn() {
   if (!G || G.busy || G.over) return;
   G.busy = true; placing = null; select(null); renderUI();
   autoMoves(0); economy(G.players[0]);
-  if (!G.over) await aiTurn();
-  if (!G.over) { autoMoves(1); economy(G.players[1]); wildlifeTurn(); }
-  if (!G.over) { G.turn++; refreshUnits(0); updateVision(G.players[0]); }
+  for (const p of G.players) { // các phe máy lần lượt đi
+    if (G.over) break;
+    if (!p.id || p.dead) continue;
+    await aiTurn(p);
+    if (!G.over && !p.dead) { autoMoves(p.id); economy(p); }
+  }
+  if (!G.over) wildlifeTurn();
+  if (!G.over) { G.turn++; refreshUnits(0); for (const p of G.players) updateVision(p); }
   G.busy = false; renderUI(); saveGame();
 }
 
@@ -1634,11 +1796,12 @@ function splitHalf() { // tách đôi: đưa nửa số lính còn MP ra thành 
   if (ids.length) select(st.find(m => m.id === ids[0]), ids);
 }
 function targetKeyAt(i) {
-  const e = G.units.find(x => x.i === i && x.owner === 1 && canSee(0, x));
+  const e = G.units.find(x => x.i === i && isEnemy(0, x.owner) && canSee(0, x));
   if (e) return (isVil(e) ? 'v' : 'a') + i;
   const b = G.bld[i];
-  if (b && b.owner === 1 && G.players[0].visible[i]) return 'b' + i;
-  if (G.players[1].city.i === i) return 'c';
+  if (b && isEnemy(0, b.owner) && G.players[0].visible[i]) return 'b' + i;
+  const c = cityAt(i);
+  if (c && isEnemy(0, c.id)) return 'c' + i;
   return null;
 }
 function onTileClick(i) {
@@ -1663,7 +1826,7 @@ function onTileClick(i) {
       if (t.tgt.army != null) { // đạo đấu đạo: mở trận
         if (tacticalOn) { askBattle(grp, t); return; }
         if (t.pos !== u.i) moveGroup(grp, t.pos, t.cost);
-        simBattle(grp, armyAt(t.i, 1)); renderUI(); return;
+        simBattle(grp, armyAt(t.i)); renderUI(); return;
       }
       if (t.pos !== u.i) moveGroup(grp, t.pos, t.cost);
       groupAttack(grp, t.tgt);
@@ -1741,6 +1904,21 @@ function ensureVisible(i) {
   if (x < r.left + m || x > r.right - m) mapwrap.scrollLeft += x - (r.left + r.width / 2);
   if (y < r.top + m || y > r.bottom - m) mapwrap.scrollTop += y - (r.top + r.height / 2);
 }
+function centerOn(i) { // cuộn để ô i nằm giữa khung bản đồ
+  mapwrap.scrollLeft = CEN[i].x / W * cv.offsetWidth - mapwrap.clientWidth / 2;
+  mapwrap.scrollTop = CEN[i].y / H * cv.offsetHeight - mapwrap.clientHeight / 2;
+}
+function focusHome() { // đầu ván / khi tải: bản đồ lớn thì phóng to để ô cỡ như bản đồ 15×15, rồi đưa Nhà chính vào giữa
+  const want = ZOOMS.reduce((b, z) => (Math.abs(z - N / 15) < Math.abs(b - N / 15) ? z : b), 1);
+  if (zoom < want) setZoom(want);
+  centerOn(G.players[0].city.i);
+}
+// phần bản đồ đang thấy trong khung (đơn vị tọa độ CEN), để chỉ vẽ những ô trong đó
+function viewRect() {
+  const r = mapwrap.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+  if (!cr.width) return { x0: -Infinity, x1: Infinity, y0: -Infinity, y1: Infinity };
+  return { x0: (r.left - cr.left) / cr.width * W - S, x1: (r.right - cr.left) / cr.width * W + S, y0: (r.top - cr.top) / cr.height * H - S, y1: (r.bottom - cr.top) / cr.height * H + S };
+}
 new ResizeObserver(() => applyZoom()).observe(mapwrap);
 cv.addEventListener('wheel', e => { e.preventDefault(); zoomStep(e.deltaY < 0 ? 1 : -1, e.clientX, e.clientY); }, { passive: false });
 // kéo chuột trái để di chuyển bản đồ đã phóng; kéo xong thì không tính là bấm ô
@@ -1757,7 +1935,11 @@ window.addEventListener('pointerup', () => { drag = null; cv.classList.remove('g
 function tileFromEvent(e) {
   const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height;
   let best = -1, bd = S * S;
-  for (let i = 0; i < N * N; i++) { const dx = CEN[i].x - x, dy = CEN[i].y - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+  const r0 = Math.round((y - OY) / (S * 1.5)), c0 = Math.round((x - OX) / (S * SQ3));
+  for (let r = r0 - 1; r <= r0 + 1; r++) for (let c = c0 - 1; c <= c0 + 1; c++) {
+    if (r < 0 || c < 0 || r >= N || c >= N) continue;
+    const i = idx(c, r), dx = CEN[i].x - x, dy = CEN[i].y - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; }
+  }
   return best;
 }
 cv.addEventListener('click', e => { if (dragged) { dragged = false; return; } onTileClick(tileFromEvent(e)); });
@@ -1799,7 +1981,7 @@ document.addEventListener('mouseover', e => {
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'zoomsel') setZoom(+e.target.value);
-  if (e.target.dataset.civsel) { setCiv(e.target.value, e.target.dataset.civsel === 'ai'); showMenu(); } // droplist đế chế ở Ván mới
+  if (e.target.dataset.lb) { const [i, k] = e.target.dataset.lb.split('-'); lobbySet(+i, k, e.target.value); showMenu(); } // bảng người chơi ở Ván mới
   if (e.target.dataset.btciv) { btLoad(); bts.sides[+e.target.dataset.btciv].civ = e.target.value; btSave(); showBattleTest(); } // sân tập
 });
 document.addEventListener('click', e => {
@@ -1817,6 +1999,9 @@ document.addEventListener('click', e => {
   if (act === 'cfg') { adminAct(a); return; }
   if (act === 'unselb') { selB = null; renderUI(); return; }
   if (act === 'mapmode') { setMapMode(a); showMenu(); return; }
+  if (act === 'mapsize') { setMapSizeSel(a); showMenu(); return; }
+  if (act === 'lbadd') { lobbyAdd(); showMenu(); return; }
+  if (act === 'lbdel') { lobbyDel(+a); showMenu(); return; }
   if (act === 'startage') { setStartAge(a); showMenu(); return; }
   if (act === 'diff') { setDiff(a); showMenu(); return; }
   if (act === 'tac') {
@@ -1860,9 +2045,9 @@ function tipHtml(i) {
   // bản đồ sáng: ô chưa khám phá chỉ cho biết địa hình, tài nguyên; nhà và Nhà chính địch ở đó vẫn bị giấu
   const T = TERRAIN[G.t[i]], b = me.explored[i] ? G.bld[i] : null, c = me.explored[i] ? cityAt(i) : null;
   let h = `<b>${T.name}</b> · ${isFinite(T.cost) ? T.cost + ' MP' : 'không thể đi qua'}${T.def ? ' · +' + T.def + ' Thủ' : ''}`;
-  if (c) h = `<b>Nhà chính ${c.id ? 'địch' : 'của bạn'}</b>` + (me.visible[i] || !c.id ? `<br>Máu ${c.city.hp}/${c.city.maxHp}` : '');
+  if (c) h = `<b>Nhà chính ${c.id ? relName(c.id) : 'của bạn'}</b>` + (me.visible[i] || !c.id ? `<br>Máu ${c.city.hp}/${c.city.maxHp}` : '');
   if (b) {
-    h += `<br>${BUILDINGS[b.id].ico} <b>${BUILDINGS[b.id].name}</b> của ${b.owner ? 'địch' : 'bạn'} · Máu ${b.hp}/${b.max}`;
+    h += `<br>${BUILDINGS[b.id].ico} <b>${BUILDINGS[b.id].name}</b> của ${relName(b.owner)} · Máu ${b.hp}/${b.max}`;
     if (!b.done) h += `<br><span class="warn">Đang xây ${progTxt(b)} lượt${b.owner === 0 && !G.units.some(u => u.build === i) ? ' — chưa có dân xây (chọn dân rồi bấm vào đây)' : ''}</span>`;
     if (!b.done && b.owner === 0) h += `<br><span class="muted">👷 ${G.units.filter(u => u.build === i).length} dân đang xây · chọn thêm dân rồi bấm vào đây để xây nhanh hơn</span>`;
     if (b.id === 'farm' && b.done) h += `<br>Còn ${b.amt} ${resIco('food')}`;
@@ -1878,10 +2063,10 @@ function tipHtml(i) {
     h += `<br>Khai thác: ${resIco(g.res)}${g.load} mỗi chuyến · <b>${g.d} lượt/chuyến</b><br><span class="muted">👷 ${n}/${tileCap(i)} dân · đặt kho gần hơn để rút ngắn chuyến</span>`;
   }
   const us = unitsAt(i).filter(u => canSee(0, u));
-  if (us.length > 1 && !isVil(us[0])) h += `<hr style="border-color:#445;margin:4px 0"><b>Đạo quân ×${us.length}</b> (${us[0].owner ? 'địch' : 'bạn'})`;
+  if (us.length > 1 && !isVil(us[0])) h += `<hr style="border-color:#445;margin:4px 0"><b>Đạo quân ×${us.length}</b> (${relName(us[0].owner)})`;
   for (const u of us.slice(0, 5)) {
     const s = ust(u);
-    h += `<hr style="border-color:#445;margin:4px 0"><b>${s.ico} ${s.name}</b> (${u.owner ? 'địch' : 'bạn'})<br>Máu ${u.hp}/${maxHp(u)}` + (s.atk ? ` · Công ${withBonus(s.atk, atkBonus(u))} · Thủ ${withBonus(s.def, defBonus(u))}` : ' · không chiến đấu');
+    h += `<hr style="border-color:#445;margin:4px 0"><b>${s.ico} ${s.name}</b> (${relName(u.owner)})<br>Máu ${u.hp}/${maxHp(u)}` + (s.atk ? ` · Công ${withBonus(s.atk, atkBonus(u))} · Thủ ${withBonus(s.def, defBonus(u))}` : ' · không chiến đấu');
   }
   if (us.length && !G.busy) {
     const u0 = us[0], own = u0.owner === 0, armed = us.some(u => ust(u).atk > 0);
@@ -1893,7 +2078,7 @@ function tipHtml(i) {
   if (key && selTargets.has(key)) {
     const t = selTargets.get(key);
     const grp = selGroup(), hit = grp.filter(m => ust(m).atk > 0).length;
-    h += `<br><span class="warn">⚔ ${t.tgt.army != null ? `Giao chiến: ${grp.length} quân ta đấu ${armyAt(i, 1).length} quân địch` : `${hit} đòn đánh`}</span>`;
+    h += `<br><span class="warn">⚔ ${t.tgt.army != null ? `Giao chiến: ${grp.length} quân ta đấu ${armyAt(i).length} quân địch` : `${hit} đòn đánh`}</span>`;
   }
   return h;
 }
@@ -2019,7 +2204,7 @@ function renderUI() {
   document.getElementById('top').innerHTML = `
     <span class="stat">Lượt <b>${G.turn}</b></span>
     <span class="stat age a${me.age}" title="Kỷ nguyên hiện tại (${me.age}/${MAX_AGE})">${AGES[me.age].split(' · ').map((s, k) => (k ? `<span class="wide"> · ${s}</span>` : s)).join('')}<span class="pips">${[1, 2, 3].map(n => (n <= me.age ? '●' : '○')).join('')}</span></span>
-    ${G.players.some(p => p.civ && p.civ !== 'none') ? G.players.map(p => { const c = civOf(p); return `<span class="stat civb" style="border-color:${p.color}" data-tt="${attrEsc(`<b>${p.name}: ${c.name}</b>${c.arch ? ' · ' + c.arch : ''}<br>${civTip(c)}`)}">${p.id ? '⚑' : '★'} <b>${c.name}</b></span>`; }).join('') : ''}
+    ${G.players.length > 2 || G.players.some(p => p.civ && p.civ !== 'none') ? G.players.map(p => { const c = civOf(p), civ = p.civ && p.civ !== 'none', rel = p.id ? (isAlly(0, p.id) ? 'Đồng minh' : 'Địch') : 'Bạn'; return `<span class="stat civb${p.dead ? ' dead' : ''}" style="border-color:${p.color}" data-tt="${attrEsc(`<b>${p.name}</b> · ${rel}${p.dead ? ' · đã bị loại' : ''}<br><b>${c.name}</b>${c.arch ? ' · ' + c.arch : ''}<br>${civTip(c)}`)}"><i class="sw" style="background:${p.color}"></i>${p.id ? (isAlly(0, p.id) ? '🤝' : '⚑') : '★'} <b>${civ ? c.name : p.name}</b></span>`; }).join('') : ''}
     ${stat('food')}${stat('wood')}${stat('stone')}${stat('gold')}
     <span class="stat" title="Dân số đang dùng / giới hạn (dân làng + quân). Mỗi Nhà dân +${CFG.pop.perHouse}, tối đa ${POP_MAX}">👥 <b>${popUsed(me)}/${popCap(me)}</b></span>
     <span class="spacer"></span>
@@ -2053,7 +2238,7 @@ function renderUI() {
       <div class="muted">${unitStatus(me, sel)} — ${s.desc}</div>${hint}
       ${spearTargets([sel]).size ? `<button class="opt" data-act="spear">🗡 Phi giáo vào voi (cách 1–${SPEAR_RANGE} ô, -${HUNT_DMG} Máu/dân)</button>` : ''}<button class="opt" data-act="vdone" ${sel.mp > 0 ? '' : 'disabled'}>⏹ Kết thúc lượt (đứng yên làm việc)</button>${sel.goto != null || sel.build != null ? '<button class="opt" data-act="stop">✋ Dừng việc đang làm</button>' : ''}`;
     h += `</div>`;
-    cmd += `<div class="card"><h3>🔨 Xây dựng</h3>` + (placing ? `<div class="place">📍 Bấm một ô <b>Đất trống</b> viền vàng để đặt ${BUILDINGS[placing.id].name}${BUILDINGS[placing.id].drop ? ' (kho đặt được cả ngoài lãnh thổ)' : ''}. <button class="btn" data-act="unplace">Hủy</button></div>` : '') + '<div class="bgrid">';
+    cmd += `<div class="card"><h3>🔨 Xây dựng</h3>` + (placing ? `<div class="place">📍 Bấm một ô <b>Đất trống</b> viền vàng để đặt ${BUILDINGS[placing.id].name}${BUILDINGS[placing.id].drop ? ` (đặt được cả ngoài lãnh thổ${placing.id === 'towncenter' ? `, cách mọi Nhà chính ≥ ${TC_GAP} ô` : ''})` : ''}. <button class="btn" data-act="unplace">Hủy</button></div>` : '') + '<div class="bgrid">';
     for (const [id, d] of Object.entries(BUILDINGS)) {
       const banned = civBanned(me, id), locked = banned || d.age > me.age, needs = !locked && d.req && !countBld(me, d.req, true);
       const desc = id === 'farm' ? `1 dân, ${FARM_LOAD + civLoad(me, 'farm')} Thức ăn/chuyến, cạn sau ${farmAmtOf(me)}${hasTech(me, 'farm') ? ' (nhờ Thuần hóa)' : ''}` : d.desc;
@@ -2184,28 +2369,44 @@ function showMenu() {
   const row = (label, act, opts, cur, desc) => `<div class="ngrow"><div class="nglab">${label}</div><div class="ngopt">
     <div class="seg">${opts.map(([k, t]) => `<button class="${String(cur) === String(k) ? 'on' : ''}" data-act="${act}:${k}">${t}</button>`).join('')}</div>
     <div class="ngdesc">${desc}</div></div></div>`;
-  const civDrop = (label, who, cur, rndTxt) => `<div class="ngrow"><div class="nglab">${label}</div><div class="ngopt">
-    <select class="ngsel" data-civsel="${who}">${[['random', '🎲 Ngẫu nhiên'], ['none', 'Không đế chế'], ...CIV_PICK.map(k => [k, `${CIVS[k].name} · ${CIVS[k].arch}`])].map(([k, t]) => `<option value="${k}"${cur === k ? ' selected' : ''}>${t}</option>`).join('')}</select>
-    <div class="ngdesc">${cur === 'random' ? rndTxt : civLine(cur)}</div></div></div>`;
+  // Bảng người chơi: Người chơi · Đế chế · Màu · Đội (cùng số đội là đồng minh; "–" là đánh tất cả)
+  const opt = (v, t, cur) => `<option value="${v}"${String(cur) === String(v) ? ' selected' : ''}>${t}</option>`;
+  const lobbyRow = (r, i) => `<div class="lbr${i ? '' : ' me'}">
+      <div class="lbn"><i class="sw" style="background:${COLORS[r.color].color}"></i>${i ? `<span title="Phe máy">🖥</span> <b style="color:${COLORS[r.color].color}">${COLORS[r.color].label}</b>` : '★ <b>Bạn</b>'}</div>
+      <select class="lbsel" data-lb="${i}-civ" title="Đế chế">${opt('random', '🎲 Ngẫu nhiên', r.civ)}${opt('none', 'Không đế chế', r.civ)}${CIV_PICK.map(k => opt(k, `${CIVS[k].name} · ${CIVS[k].arch}`, r.civ)).join('')}</select>
+      <select class="lbsel lbcol" data-lb="${i}-color" title="Màu phe — chọn màu đã có người dùng thì hai bên đổi màu cho nhau" style="border-left-color:${COLORS[r.color].color}">${COLORS.map((c, k) => opt(k, '■ ' + c.label, r.color)).join('')}</select>
+      <select class="lbsel lbteam" data-lb="${i}-team" title="Đội — cùng số là đồng minh">${opt(0, '–', r.team)}${[1, 2, 3, 4].map(t => opt(t, 'Đội ' + t, r.team)).join('')}</select>
+      ${i && lobby.length > 2 ? `<button class="btn sm lbdel" data-act="lbdel:${i}" title="Bỏ phe này">✕</button>` : '<span></span>'}
+    </div>`;
+  const me = lobby[0], ok = lobbyOk();
+  const lobbyHtml = `<div class="lobby">
+      <div class="lbr lbh"><div>Người chơi</div><div>Đế chế</div><div>Màu</div><div>Đội</div><div></div></div>
+      ${lobby.map(lobbyRow).join('')}
+      <div class="lbfoot">${lobby.length < MAX_SIDES ? '<button class="btn sm" data-act="lbadd">+ Thêm phe máy</button>' : '<span class="muted">Tối đa 4 phe.</span>'}
+        <span class="lbsum${ok ? '' : ' warn'}">${ok ? '⚔ ' + teamsText() : '⚠ Mọi phe đang cùng một đội — cần ít nhất hai bên đối địch.'}</span></div>
+      <div class="ngdesc">${me.civ === 'random' ? 'Đế chế của bạn: game chọn ngẫu nhiên khi bắt đầu ván.' : `Đế chế của bạn — ${civLine(me.civ)}`}<br>
+        Cùng số đội là đồng minh: không đánh nhau, đi xuyên qua quân và nhà của nhau, chung tầm nhìn. "–" là không đội: đánh tất cả.${lobby.length > 2 ? ' Từ 3 phe: bản đồ từ 21×21, Nhà chính ở 4 góc, đồng đội đặt cạnh nhau.' : ''}</div>
+    </div>`;
   const dc = CFG[DIFFS[diffSel].key];
   const cont = sv ? (() => {
     const d = new Date(sv.at), when = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} ${d.getDate()}/${d.getMonth() + 1}`, p0 = sv.G.players[0];
     return `<div class="ngcont"><button class="btn primary big" data-act="continue">▶ Tiếp tục ván</button>
-      <span class="muted">Lượt ${sv.G.turn} · ${AGES[p0.age]} · ${civOf(p0).name} · AI ${(DIFFS[sv.G.diff] || DIFFS.normal).name}<br>lưu lúc ${when}</span></div>`;
+      <span class="muted">Lượt ${sv.G.turn} · ${sv.G.players.length} phe · ${AGES[p0.age]} · ${civOf(p0).name} · AI ${(DIFFS[sv.G.diff] || DIFFS.normal).name}<br>lưu lúc ${when}</span></div>`;
   })() : '';
   o.innerHTML = `<div class="modal menu"><h1>Đế chế D3KT</h1>
-    <div class="muted">Chiến thuật theo lượt, 1 người đấu 1 AI. Hạ Nhà chính đối phương để thắng.</div>
+    <div class="muted">Chiến thuật theo lượt, 1 người đấu 1–3 phe máy, có thể liên minh. Hạ Nhà chính mọi phe đối địch để thắng.</div>
     ${cont}
     <h2>Ván mới</h2>
-    ${civDrop('Đế chế của bạn', 'me', civSel, 'Game chọn ngẫu nhiên một đế chế cho bạn khi bắt đầu ván.')}
-    ${civDrop('Đế chế đối thủ', 'ai', aiCivSel, 'Máy chọn ngẫu nhiên một trong các đế chế đã có.')}
+    ${lobbyHtml}
     ${row('Độ khó', 'diff', Object.entries(DIFFS).map(([k, d]) => [k, d.name]), diffSel, `${DIFFS[diffSel].desc} Khai thác ${dc.gather}%${dc.bonus ? `, +${dc.bonus} mỗi tài nguyên` : ''}, đi đánh khi đủ ${dc.march} lính.`)}
-    ${row('Bắt đầu ở', 'startage', [1, 2, 3].map(n => [n, AGES[n].split(' · ')[1]]), startAgeSel, startAgeSel === 1 ? 'Đi từ đầu, như bình thường.' : `Cả hai bên ở ${AGES[startAgeSel]}: lãnh thổ bán kính ${AGE_UP[startAgeSel].rad}${startAgeSel === 3 ? `, Nhà chính +${AGE_UP[3].cityHp} Máu` : ''}.`)}
+    ${row('Bắt đầu ở', 'startage', [1, 2, 3].map(n => [n, AGES[n].split(' · ')[1]]), startAgeSel, startAgeSel === 1 ? 'Đi từ đầu, như bình thường.' : `Mọi phe ở ${AGES[startAgeSel]}: lãnh thổ bán kính ${AGE_UP[startAgeSel].rad}${startAgeSel === 3 ? `, Nhà chính +${AGE_UP[3].cityHp} Máu` : ''}.`)}
+    ${row('Cỡ bản đồ', 'mapsize', Object.entries(MAP_SIZES).filter(([n]) => lobby.length === 2 || +n >= 21).map(([n, z]) => [n, `${z.name} ${n}×${n}`]), effMapSize(), MAP_SIZES[effMapSize()].desc)}
     ${row('Bản đồ', 'mapmode', [['dark', '🌑 Tối'], ['light', '☀️ Sáng']], mapMode, MAP_MODES[mapMode].desc)}
     <div class="muted ngstart">Khởi đầu: ${CFG.start.villagers} dân làng, 🍖${CFG.start.food} 🪵${CFG.start.wood} 🪨${CFG.start.stone} 🪙${CFG.start.gold} và một Nhà chính.${cfgChanged() ? ' ⚙ Đang dùng cấu hình đã chỉnh ở Quản trị.' : ''}</div>
-    <div class="ngfoot"><button class="btn${sv ? '' : ' primary'} big" data-act="start">Bắt đầu ván mới</button>
+    <div class="ngfoot"><button class="btn${sv ? '' : ' primary'} big" data-act="start" ${ok ? '' : 'disabled'}>Bắt đầu ván mới</button>
       <span class="spacer"></span><button class="btn" data-act="btest">⚔ Sân tập trận</button><button class="btn" data-act="help">Hướng dẫn</button><button class="btn" data-act="admin">⚙ Quản trị</button></div>
-    ${sv ? '<div class="muted ngwarn">Bắt đầu ván mới sẽ thay ván đang lưu.</div>' : ''}</div>`;
+    ${sv ? '<div class="muted ngwarn">Bắt đầu ván mới sẽ thay ván đang lưu.</div>' : ''}
+    <div class="muted copyright">© 2026 TieuPhuong28 · Đế chế D3KT. Bảo lưu mọi quyền.</div></div>`;
   o.classList.add('show');
 }
 function showHelp() {
@@ -2370,7 +2571,7 @@ function newBattle(att, def) {
     const col = side === 0 ? (ranged ? 0 : 1) : (ranged ? BCOLS - 1 : BCOLS - 2);
     pieces.push({ u: x, owner: x.owner, side, type: x.type, cell: row * BCOLS + col, hp: x.hp, max: maxHp(x), mp: 0, defend: false, moved: false, alive: true });
   }));
-  return { hex: [att[0].i, def[0].i], pieces, terr, round: 1, order: [], oi: -1, cur: null, reach: new Map(), targets: new Map(), phase: 'ai', auto: false, sim: false, log: [], fl: [], fx: [], hover: -1, result: null, done: null };
+  return { hex: [att[0].i, def[0].i], own: [att[0].owner, def[0].owner], pieces, terr, round: 1, order: [], oi: -1, cur: null, reach: new Map(), targets: new Map(), phase: 'ai', auto: false, sim: false, log: [], fl: [], fx: [], hover: -1, result: null, done: null };
 }
 // Đánh tự động: máy điều khiển cả hai bên theo đúng luật bàn cờ, trả kết quả ngay
 function simBattle(att, def) {
@@ -2409,7 +2610,7 @@ function askBattle(grp, t) { // người chơi tấn công một đạo địch
   o.innerHTML = `<div class="modal"><h1>⚔ Giao chiến</h1>
     <p class="muted">Đạo của bạn tấn công đạo địch tại ô ${TERRAIN[G.t[t.i]].name}. Trận kéo dài tối đa ${BMAXR} hiệp. “Tự động” để máy đánh thay cả trận theo cùng luật.</p>
     <h2>Đạo của bạn (tấn công)</h2><div class="order">${armyList(grp, 'ally')}</div>
-    <h2>Đạo địch (phòng thủ)</h2><div class="order">${armyList(armyAt(t.i, 1), 'foe')}</div>
+    <h2>Đạo địch (phòng thủ)</h2><div class="order">${armyList(armyAt(t.i), 'foe')}</div>
     <p style="margin-top:14px"><button class="btn primary" data-act="bt:manual">Chỉ huy trực tiếp</button>
     <button class="btn" data-act="bt:auto">Tự động</button> <button class="btn" data-act="bt:cancel">Hủy</button></p></div>`;
   o.classList.add('show');
@@ -2437,7 +2638,7 @@ function battleChoice(a) { // xử lý nút trên hai hộp thoại trên
     else { simBattle(att, def); pd.res(); }
     return;
   }
-  const grp = pd.grp.filter(u => G.units.includes(u)), def = armyAt(pd.t.i, 1);
+  const grp = pd.grp.filter(u => G.units.includes(u)), def = armyAt(pd.t.i).filter(o => isEnemy(0, o.owner));
   if (a === 'cancel' || !grp.length || !def.length) return;
   if (pd.t.pos !== grp[0].i) moveGroup(grp, pd.t.pos, pd.t.cost);
   if (a === 'manual') startBattle(grp, def); else { simBattle(grp, def); renderUI(); }
@@ -2462,7 +2663,7 @@ function bLos(a, b) {
   return ok;
 }
 const bHillShot = a => UNITS[a.type].brange > 1 && B.terr[a.cell] === 2; // Cung thủ đứng trên Đồi: +1 sát thương
-const bName = p => `${UNITS[p.type].name} ${p.owner ? 'địch' : 'ta'}`;
+const bName = p => `${UNITS[p.type].name} ${p.owner === 0 ? 'ta' : isAlly(0, p.owner) ? 'đồng minh ' + G.players[p.owner].name : G.players.length > 2 ? G.players[p.owner].name : 'địch'}`;
 const bHuman = p => p.owner === 0 && !B.auto && !B.sim;
 function bOrder() { B.order = B.pieces.filter(p => p.alive).sort((a, b) => UNITS[b.type].init - UNITS[a.type].init || a.side - b.side); }
 function bReach(p) {
@@ -2532,7 +2733,7 @@ function bConvert(a, d) {
   d.side = a.side; d.owner = a.owner; d.conv = true; d.defend = false; a.spent = true;
   if (a.u) a.u.faithAt = G.turn + faithRest(G.players[a.owner]) + 1; // hồi sức: hết trận này và faithRest lượt sau
   B.fl.push({ cell: d.cell, text: '✨ Cải đạo!', color: '#e2c7ff', t0, big: true });
-  B.log.push({ msg: `${bName(a)} cải đạo ${who} — thành công! Nó theo phe ${a.owner ? 'địch' : 'ta'}.`, cls: a.owner ? 'bad' : 'good' });
+  B.log.push({ msg: `${bName(a)} cải đạo ${who} — thành công! Nó theo phe ${a.owner ? G.players[a.owner].name : 'ta'}.`, cls: friendly(0, a.owner) ? 'good' : 'bad' });
   return true;
 }
 function bAttack(a, d) { if (isPriest(a)) bConvert(a, d); else bCounter(a, d, bHit(a, d)); } // tính ngay (trận tự động không xem)
@@ -2662,9 +2863,9 @@ async function battleAct(a) {
 }
 function bFinish(kind) { // 0: bên công thắng · 1: bên thủ thắng · -1: hết hiệp · 'retreat': người chơi rút
   B.phase = 'done'; B.kind = kind; B.reach = new Map(); B.targets = new Map();
-  const lost = [0, 0];
+  const lost = {};
   for (const p of B.pieces) {
-    if (!p.alive) { lost[p.owner]++; if (G.units.includes(p.u)) killUnit(p.u); continue; }
+    if (!p.alive) { lost[p.owner] = (lost[p.owner] || 0) + 1; if (G.units.includes(p.u)) killUnit(p.u); continue; }
     p.u.hp = p.hp;
     if (p.conv) { // bị cải đạo: đổi chủ, nhập đạo của bên mới (đạo đầy thì đứng ô trống gần nhất)
       const u = p.u, hex = B.hex[p.side];
@@ -2676,11 +2877,13 @@ function bFinish(kind) { // 0: bên công thắng · 1: bên thủ thắng · -1
   }
   for (const pl of G.players) updateVision(pl);
   const winner = kind === 0 || kind === 1 ? B.pieces.find(p => p.side === kind).owner : -1;
+  const [oa, od] = B.own, mine = friendly(0, oa) || friendly(0, od); // trận có ta / đồng minh tham gia
+  const nm = o => (o === 0 ? 'Ta' : G.players.length > 2 ? (isAlly(0, o) ? 'Đồng minh ' : '') + G.players[o].name : 'Địch');
   const head = kind === 'retreat' ? 'Bạn đã ra lệnh rút lui.' : kind === -1 ? `Hết ${BMAXR} hiệp — hai bên thu quân.`
-    : winner === 0 ? '🏆 Thắng trận! Đạo địch đã bị đánh tan.' : '💀 Bại trận. Đạo quân của ta đã bị tiêu diệt.';
-  const nConv = [0, 1].map(o => B.pieces.filter(p => p.conv && p.owner === o).length);
-  B.result = `${head} Ta mất ${lost[0]}, địch mất ${lost[1]} đơn vị.${nConv[0] ? ` ✨ Ta cải đạo được ${nConv[0]} quân địch.` : ''}${nConv[1] ? ` ✨ Địch cải đạo ${nConv[1]} quân của ta.` : ''}`;
-  log(`Trận đánh${B.sim ? ' (tự động)' : ''}: ${B.result}`, winner === 0 ? 'good' : winner === 1 ? 'bad' : 'info');
+    : !mine ? `${nm(winner)} thắng trận.` : friendly(0, winner) ? (winner === 0 ? '🏆 Thắng trận! Đạo địch đã bị đánh tan.' : `🏆 ${nm(winner)} thắng trận.`) : `💀 Bại trận. Đạo quân ${oa === 0 || od === 0 ? 'của ta' : 'đồng minh'} đã bị tiêu diệt.`;
+  const conv = [oa, od].map(o => { const n = B.pieces.filter(p => p.conv && p.owner === o).length; return n ? ` ✨ ${nm(o)} cải đạo được ${n} quân.` : ''; }).join('');
+  B.result = `${head} ${nm(oa)} mất ${lost[oa] || 0}, ${nm(od).replace(/^./, ch => ch.toLowerCase())} mất ${lost[od] || 0} đơn vị.${conv}`;
+  log(`Trận đánh${B.sim ? ' (tự động)' : ''}: ${B.result}`, !mine || winner === -1 ? 'info' : friendly(0, winner) ? 'good' : 'bad');
   select(null); renderUI(); renderBattleUI();
 }
 function bHoverHtml(cell) {
@@ -3060,7 +3263,7 @@ function drawTile(g, t, x, y, r, i, battle, fog) {
   }
 }
 // Công trình: nền màu phe dưới chân, ảnh (assets/buildings/*.svg) và cờ phe. size: cỡ ảnh; big: Nhà chính (cờ to hơn)
-const BLD_SIZE = { house: 34, farm: 50 }; // cỡ ảnh riêng từng loại công trình trên bản đồ; loại khác dùng 44
+const BLD_SIZE = { house: 34, farm: 50, towncenter: 54 }; // cỡ ảnh riêng từng loại công trình trên bản đồ; loại khác dùng 44
 function drawBuilding(g, x, y, key, color, size, flag, big) {
   g.save();
   g.beginPath(); g.ellipse(x, y + 10, size * 0.4, size * 0.13, 0, 0, Math.PI * 2);
@@ -3130,8 +3333,9 @@ function draw() {
   g.setTransform(RES, 0, 0, RES, 0, 0);
   g.clearRect(0, 0, W, H); // nền trong suốt: thấy nền của khung bản đồ (style.css)
   if (!G) return;
-  const me = G.players[0];
+  const me = G.players[0], vr = viewRect(), inView = i => CEN[i].x >= vr.x0 && CEN[i].x <= vr.x1 && CEN[i].y >= vr.y0 && CEN[i].y <= vr.y1;
   for (let i = 0; i < N * N; i++) {
+    if (!inView(i)) continue;
     const { x, y } = CEN[i];
     hexPath(g, x, y, S - 0.5);
     if (!known(me, i)) { g.fillStyle = '#050507'; g.fill(); g.strokeStyle = '#15161c'; g.lineWidth = 1; g.stroke(); continue; }
@@ -3139,9 +3343,9 @@ function draw() {
   }
   // lãnh thổ
   for (const p of G.players) {
-    if (!me.explored[p.city.i]) continue;
+    if (p.dead || !me.explored[p.city.i]) continue;
     g.strokeStyle = p.color; g.lineWidth = 1.5; g.globalAlpha = 0.45;
-    for (const i of terrOf(p)) if (me.explored[i]) { hexPath(g, CEN[i].x, CEN[i].y, S - 3); g.stroke(); }
+    for (const i of terrOf(p)) if (me.explored[i] && inView(i)) { hexPath(g, CEN[i].x, CEN[i].y, S - 3); g.stroke(); }
     g.globalAlpha = 1;
   }
   // công trình
@@ -3152,7 +3356,7 @@ function draw() {
     if (me.visible[i] || b.owner === 0) { if (!b.done) hpBar(g, x, y + 15, 26, b.prog / b.need); else if (b.hp < b.max) hpBar(g, x, y + 15, 26, b.hp / b.max); }
   }
   // sương mù xám
-  for (let i = 0; i < N * N; i++) if (known(me, i) && !me.visible[i] && !fogTile(me, i)) { hexPath(g, CEN[i].x, CEN[i].y, S - 0.5); g.fillStyle = FOG; g.fill(); }
+  for (let i = 0; i < N * N; i++) if (inView(i) && known(me, i) && !me.visible[i] && !fogTile(me, i)) { hexPath(g, CEN[i].x, CEN[i].y, S - 0.5); g.fillStyle = FOG; g.fill(); }
   // đánh dấu lựa chọn
   if (selB != null) { const bi = selB === 'city' ? me.city.i : selB; hexPath(g, CEN[bi].x, CEN[bi].y, S - 2); g.strokeStyle = '#ffe14a'; g.lineWidth = 3; g.stroke(); }
   // xem trước tầm của quân dưới chuột (địch: vùng nó có thể đi/đánh tới ở lượt của nó)
@@ -3160,11 +3364,11 @@ function draw() {
   if (hu && !(sel && selGroup().includes(hu))) {
     const key = `${hover}|${G.turn}|${G.units.map(u => u.i + ':' + u.mp).join(',')}`;
     if (!hoverRange || hoverRange.key !== key) hoverRange = { key, ...rangeOf(hu, hu.owner !== 0 || hu.mp <= 0) };
-    if (!sel) drawRange(g, hoverRange.mv.keys(), hoverRange.atk, hu.owner ? 'foe' : 'peek');
+    if (!sel) drawRange(g, hoverRange.mv.keys(), hoverRange.atk, isEnemy(0, hu.owner) ? 'foe' : 'peek');
   }
   if (sel) {
     drawRange(g, selReach.keys(), selAtk, 'sel');
-    if (hu && hu.owner !== 0) drawRange(g, hoverRange.mv.keys(), hoverRange.atk, 'foeLine'); // đang chọn quân mình: chỉ viền vùng địch để không che
+    if (hu && isEnemy(0, hu.owner)) drawRange(g, hoverRange.mv.keys(), hoverRange.atk, 'foeLine'); // đang chọn quân mình: chỉ viền vùng địch để không che
     cornerFrame(g, CEN[sel.i].x, CEN[sel.i].y, S);
     const dest = sel.build != null ? sel.build : sel.goto;
     if (dest != null) { g.font = '15px "Segoe UI Emoji", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🚩', CEN[dest].x + 12, CEN[dest].y - 12); }
@@ -3178,7 +3382,7 @@ function draw() {
   }
   // nhà chính
   for (const p of G.players) {
-    const c = p.city; if (!me.explored[c.i]) continue;
+    const c = p.city; if (p.dead || !me.explored[c.i]) continue;
     const { x, y } = CEN[c.i];
     drawBuilding(g, x, y, 'buildings/city' + Math.min(p.age, MAX_AGE), p.color, p.age >= 3 ? 58 : 54, true, true);
     const hp = me.visible[c.i] || p.id === 0 ? c.hp : c.maxHp;
@@ -3343,11 +3547,16 @@ function adminAct(a) {
 }
 
 // ---------- Bản đồ con ----------
-const MINI_K = 0.19, mini = document.getElementById('mini'), mctx = mini.getContext('2d');
+let MINI_K = 0.19; const MINI_W15 = Math.ceil(S * SQ3 * 15.5) + 12, mini = document.getElementById('mini'), mctx = mini.getContext('2d');
 let miniOn = true;
 try { miniOn = localStorage.getItem('mini') !== '0'; } catch (e) { /* bỏ qua */ }
-mini.width = Math.round(W * MINI_K) * 2; mini.height = Math.round(H * MINI_K) * 2;
-mini.style.width = Math.round(W * MINI_K) + 'px'; mini.style.height = Math.round(H * MINI_K) + 'px';
+function onMapSize() { // gọi từ setMapSize: bản đồ con giữ nguyên bề ngang, khung vẽ chính tính lại
+  MINI_K = 0.19 * MINI_W15 / W;
+  mini.width = Math.round(W * MINI_K) * 2; mini.height = Math.round(H * MINI_K) * 2;
+  mini.style.width = Math.round(W * MINI_K) + 'px'; mini.style.height = Math.round(H * MINI_K) + 'px';
+  RES = 0; applyZoom(); // RES = 0 buộc đặt lại kích thước canvas
+}
+mapUiReady = true; onMapSize();
 // Thu gọn / mở bảng điều khiển dưới đáy (nhớ lựa chọn); bản đồ tự giãn theo chỗ trống
 let panelOn = true;
 try { panelOn = localStorage.getItem('panel') !== '0'; } catch (e) { /* bỏ qua */ }
@@ -3386,14 +3595,14 @@ function drawMini() {
   }
   for (const u of G.units) if (canSee(0, u)) {
     g.beginPath(); g.arc(CEN[u.i].x * k, CEN[u.i].y * k, isVil(u) ? 2.2 : 3, 0, Math.PI * 2);
-    g.fillStyle = u.owner ? '#ff6a5c' : '#6fb1ff'; g.fill();
+    g.fillStyle = G.players[u.owner].color; g.fill();
   }
   const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 300);
   for (const p of G.players) {
-    if (!me.explored[p.city.i]) continue;
+    if (p.dead || !me.explored[p.city.i]) continue;
     const x = CEN[p.city.i].x * k, y = CEN[p.city.i].y * k;
     if (p.id === 0) { g.beginPath(); g.arc(x, y, 9 + pulse * 4, 0, Math.PI * 2); g.strokeStyle = `rgba(255,225,74,${0.9 - pulse * 0.5})`; g.lineWidth = 2; g.stroke(); }
-    star(g, x, y, 7.5, p.id ? '#ff4a3a' : '#ffe14a');
+    star(g, x, y, 7.5, p.id ? p.color : '#ffe14a');
   }
   if (zoom > 1) { // khung trắng: phần bản đồ đang thấy
     const r = mapwrap.getBoundingClientRect(), cr = cv.getBoundingClientRect(), cl = v => Math.max(0, Math.min(1, v));
